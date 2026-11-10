@@ -24,7 +24,7 @@ async function load() {
   $("threads").value = settings.threads;
   const interval = $("watch-interval");
   if ([...interval.options].some((o) => o.value === String(settings.watch_interval))) interval.value = String(settings.watch_interval);
-  $("me").innerHTML = `<option value="">Most frequent player</option>` + players.map((pl) => `<option value="${esc(pl.name)}">${esc(pl.name)} · ${plural(pl.matches, "match", "matches")}</option>`).join("");
+  $("me").innerHTML = `<option value="">Not set: show both players</option>` + players.map((pl) => `<option value="${esc(pl.name)}">${esc(pl.name)} · ${plural(pl.matches, "match", "matches")}</option>`).join("");
   $("me").value = settings.me || "";
 }
 
@@ -42,7 +42,18 @@ document.addEventListener("DOMContentLoaded", () => {
   load().catch((err) => toast(err.message, true));
   document.querySelectorAll("#theme-seg [data-theme-choice]").forEach((b) => b.addEventListener("click", () => Theme.set(b.dataset.themeChoice)));
   Theme.apply();
-  $("me").addEventListener("change", () => save({ me: $("me").value }, $("me").value ? `You are ${$("me").value}` : "Using the most frequent player"));
+  $("me").addEventListener("change", () => {
+    const me = $("me").value;
+    const review = Prefs.get("review.filters", null);
+    if (review) Prefs.set("review.filters", { ...review, player: me ? `name:${me}` : "" });
+    Prefs.set("dashboard.player", "");
+    try {
+      const practice = JSON.parse(localStorage.getItem("gammon-practice") || "{}");
+      practice.player = me;
+      localStorage.setItem("gammon-practice", JSON.stringify(practice));
+    } catch (_) {}
+    save({ me }, me ? `Showing ${me}'s moves by default` : "Showing both players by default");
+  });
   document.querySelectorAll("#preset-seg [data-preset]").forEach((b) => b.addEventListener("click", () => {
     setPreset(b.dataset.preset);
     if (presets[b.dataset.preset]) setThresholdInputs(presets[b.dataset.preset]);

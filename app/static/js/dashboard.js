@@ -201,11 +201,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     const { players } = await api.get("/api/players");
     const { settings } = await api.get("/api/settings");
-    const chosen = settings.me || (players[0] && players[0].name) || "";
+    const names = players.map((p) => p.name);
+    const remembered = Prefs.get("dashboard.player", "");
+    const chosen = names.includes(remembered) ? remembered : settings.me || names[0] || "";
     $("player").innerHTML = players.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join("");
     $("player").value = chosen;
     $("player").hidden = players.length < 2;
-    $("player").addEventListener("change", () => load($("player").value));
+    $("player").addEventListener("change", () => {
+      Prefs.set("dashboard.player", $("player").value);
+      load($("player").value);
+    });
     load(chosen);
   } catch (err) {
     toast(err.message, true);

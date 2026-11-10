@@ -7,7 +7,7 @@ const state = {
   thresholds: null, matches: [], queue: [], index: 0,
   session: { answered: 0, correct: 0, requeued: new Set() },
   d: null, phase: "idle", start: null, frame: null, remaining: [], history: [], finals: null, selected: null,
-  result: null, arrows: new Set(["yours", "best"]), candidate: null,
+  result: null, arrows: new Set(Prefs.get("practice.arrows", ["yours", "best"])), candidate: null,
 };
 
 function loadPrefs() {
@@ -422,6 +422,7 @@ function renderResult() {
     const k = el.dataset.arrow;
     if (state.candidate !== null) state.candidate = null;
     else state.arrows.has(k) ? state.arrows.delete(k) : state.arrows.add(k);
+    Prefs.set("practice.arrows", [...state.arrows]);
     renderResult();
   }));
   $("panel").querySelectorAll("[data-cand]").forEach((el) => el.addEventListener("click", () => {
@@ -488,7 +489,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     state.matches = matches.filter((m) => m.status === "done");
     const prefs = loadPrefs();
     $("s-player").innerHTML = `<option value="">Both players</option>` + players.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join("");
-    $("s-player").value = prefs.player !== undefined ? prefs.player : (settings.me || (players[0] ? players[0].name : ""));
+    $("s-player").value = prefs.player !== undefined ? prefs.player : (settings.me || "");
     $("s-match").innerHTML = `<option value="">All matches</option>` + state.matches.map((m) =>
       `<option value="${m.id}">${esc(shortDate(m.event_date))} · ${esc(m.player1)} vs ${esc(m.player2)}</option>`).join("");
     ["severity", "kind", "mode", "match"].forEach((k) => {

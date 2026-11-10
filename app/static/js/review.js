@@ -1,16 +1,43 @@
 const state = {
   matches: [], thresholds: null, decisions: [], selected: new Set(), current: null, focus: null,
-  arrows: new Set(["played", "best"]), candidate: null, detail: null,
+  arrows: new Set(Prefs.get("review.arrows", ["played", "best"])), candidate: null, detail: null,
 };
+
+const FILTER_DEFAULTS = { match: "", player: "", kind: "", severity: "doubtful", custom: "0.05", game: "", forced: false };
 
 function readUrl() {
   const p = new URLSearchParams(location.search);
   state.focus = Number(p.get("focus")) || null;
-  return {
-    match: p.get("match") || "", player: p.get("player") || (p.get("player_name") ? `name:${p.get("player_name")}` : ""),
-    kind: p.get("kind") || "", severity: p.get("min_error") || "doubtful", custom: p.get("custom") || "0.05",
-    game: p.get("game") || "", forced: p.get("forced") === "1",
-  };
+  const found = {};
+  if (p.has("match")) found.match = p.get("match");
+  if (p.has("player")) found.player = p.get("player");
+  if (p.has("player_name")) found.player = `name:${p.get("player_name")}`;
+  if (p.has("kind")) found.kind = p.get("kind");
+  if (p.has("min_error")) found.severity = p.get("min_error");
+  if (p.has("custom")) found.custom = p.get("custom");
+  if (p.has("game")) found.game = p.get("game");
+  if (p.has("forced")) found.forced = p.get("forced") === "1";
+  return found;
+}
+
+function startingFilters(defaultPlayer) {
+  const fromUrl = readUrl();
+  const base = { ...FILTER_DEFAULTS, player: defaultPlayer ? `name:${defaultPlayer}` : "" };
+  if (Object.keys(fromUrl).length) {
+    const linked = { ...base, ...fromUrl };
+    if (state.focus && !("player" in fromUrl)) linked.player = "";
+    return linked;
+  }
+  return { ...base, ...Prefs.get("review.filters", {}) };
+}
+
+function rememberFilters(f) {
+  let player = f.player;
+  if (player === "1" || player === "2") {
+    const match = state.matches.find((m) => String(m.id) === f.match);
+    player = match ? `name:${player === "1" ? match.player1 : match.player2}` : "";
+  }
+  Prefs.set("review.filters", { ...f, player });
 }
 
 function currentFilters() {
@@ -68,6 +95,7 @@ function subtitle() {
 async function loadDecisions() {
   const f = currentFilters();
   writeUrl(f);
+  rememberFilters(f);
   $("custom-field").hidden = f.severity !== "custom";
   $("review-sub").textContent = subtitle();
   const q = new URLSearchParams({ min_error: minError(f) });
@@ -156,6 +184,7 @@ function renderBoardPanel(d) {
     const k = el.dataset.arrow;
     if (state.candidate !== null) state.candidate = null;
     else state.arrows.has(k) ? state.arrows.delete(k) : state.arrows.add(k);
+    Prefs.set("review.arrows", [...state.arrows]);
     renderDetail(d);
   }));
   $("copy-xgid").addEventListener("click", async () => {
@@ -299,11 +328,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     const [{ matches }, { settings }] = await Promise.all([api.get("/api/matches"), api.get("/api/settings")]);
     state.matches = matches.filter((m) => m.status === "done");
     state.thresholds = settings.thresholds;
+    state.me = settings.me || "";
   } catch (err) {
     toast(err.message, true);
     return;
   }
-  const f = readUrl();
+  const f = startingFilters(state.me);
   $("f-match").innerHTML = `<option value="">All matches</option>` + state.matches.map((m) =>
     `<option value="${m.id}">${esc(shortDate(m.event_date || m.created_at))} · ${esc(m.player1)} vs ${esc(m.player2)}</option>`).join("");
   if ([...$("f-match").options].some((o) => o.value === f.match)) $("f-match").value = f.match;
@@ -313,7 +343,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("f-custom").value = f.custom;
   $("f-forced").checked = f.forced;
 
-  $("f-match").addEventListener("change", () => { fillPlayerAndGame({ ...currentFilters(), player: "", game: "" }); loadDecisions(); });
+  $("f-match").addEventListener("change", () => {
+    const kept = Prefs.get("review.filters", {}).player || "";
+    fillPlayerAndGame({ ...currentFilters(), player: kept, game: "" });
+    loadDecisions();
+  });
   ["f-player", "f-kind", "f-severity", "f-game", "f-forced"].forEach((id) => $(id).addEventListener("change", loadDecisions));
   $("f-custom").addEventListener("input", () => { clearTimeout(state.timer); state.timer = setTimeout(loadDecisions, 300); });
   $("filters").addEventListener("submit", (ev) => ev.preventDefault());

@@ -61,7 +61,13 @@ async function load(append) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  $("h-kind").addEventListener("change", () => { oldest = null; load(false); });
+  const remembered = Prefs.get("history.kind", "");
+  if ([...$("h-kind").options].some((o) => o.value === remembered)) $("h-kind").value = remembered;
+  $("h-kind").addEventListener("change", () => {
+    Prefs.set("history.kind", $("h-kind").value);
+    oldest = null;
+    load(false);
+  });
   $("more").addEventListener("click", () => load(true));
   load(false);
 });

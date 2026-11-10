@@ -131,6 +131,21 @@ function toast(message, isError = false) {
   el._timer = setTimeout(() => el.classList.remove("show"), isError ? 6000 : 3200);
 }
 
+/* ---------- remembered choices (per browser) ---------- */
+const Prefs = {
+  get(key, fallback) {
+    try {
+      const raw = localStorage.getItem(`vsg:${key}`);
+      return raw === null ? fallback : JSON.parse(raw);
+    } catch (_) {
+      return fallback;
+    }
+  },
+  set(key, value) {
+    try { localStorage.setItem(`vsg:${key}`, JSON.stringify(value)); } catch (_) {}
+  },
+};
+
 /* ---------- theme ---------- */
 const Theme = {
   key: "ga-theme",
