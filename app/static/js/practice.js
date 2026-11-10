@@ -1,7 +1,7 @@
 const STORAGE_KEY = "gammon-practice";
-const MODE_TEXT = { due: "Missed first, then new", misses: "Only missed", new: "Only new", all: "Everything" };
-const SEVERITY_TEXT = { doubtful: "Errors", bad: "Bad or worse", very_bad: "Very bad only", all: "Every decision" };
-const KIND_TEXT = { "": "Checker and cube", checker: "Checker plays", cube: "Cube decisions" };
+const MODE_TEXT = { due: t("Missed first, then new"), misses: t("Only missed"), new: t("Only new"), all: t("Everything") };
+const SEVERITY_TEXT = { doubtful: t("Errors"), bad: t("Bad or worse"), very_bad: t("Very bad only"), all: t("Every decision") };
+const KIND_TEXT = { "": t("Checker and cube"), checker: t("Checker plays"), cube: t("Cube decisions") };
 
 const state = {
   thresholds: null, matches: [], queue: [], index: 0,
@@ -48,19 +48,19 @@ function shuffle(items) {
 function renderSummary() {
   const match = state.matches.find((m) => String(m.id) === $("s-match").value);
   const chips = [
-    $("s-player").value || "Both players",
+    $("s-player").value || t("Both players"),
     SEVERITY_TEXT[$("s-severity").value],
     KIND_TEXT[$("s-kind").value],
     MODE_TEXT[$("s-mode").value],
-    match ? `${match.player1} vs ${match.player2}, ${shortDate(match.event_date)}` : "All matches",
+    match ? `${match.player1} ${t("vs")} ${match.player2}, ${shortDate(match.event_date)}` : t("All matches"),
   ];
-  if ($("s-shuffle").checked) chips.push("Shuffled");
+  if ($("s-shuffle").checked) chips.push(t("Shuffled"));
   $("summary").innerHTML = chips.map((c, i) => `<span class="chip">${i === 0 ? `<strong>${esc(c)}</strong>` : esc(c)}</span>`).join("");
 }
 
 function renderStats(stats) {
   const accuracy = stats.attempts ? `${Math.round((100 * stats.correct) / stats.attempts)}%` : "–";
-  const items = [[stats.new, "new"], [stats.missed, "missed"], [stats.mastered, "solved"], [accuracy, `accuracy · ${plural(stats.attempts, "try", "tries")}`]];
+  const items = [[stats.new, t("new")], [stats.missed, t("missed")], [stats.mastered, t("solved")], [accuracy, t("accuracy · {tries}", { tries: plural(stats.attempts, "try") })]];
   $("stats").innerHTML = items.map(([n, l]) => `<div class="mini-stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
 }
 
@@ -70,7 +70,7 @@ function renderProgress() {
   $("progress").style.width = total ? `${(100 * done) / total}%` : "0%";
   $("progressbar").setAttribute("aria-valuenow", String(done));
   $("progressbar").setAttribute("aria-valuemax", String(total));
-  $("progress-text").textContent = `${done} / ${total} this session`;
+  $("progress-text").textContent = t("{done} / {total} this session", { done, total });
 }
 
 async function startSession() {
@@ -101,49 +101,49 @@ function clearStage(prompt) {
 
 function showEmpty() {
   state.phase = "idle";
-  clearStage("Nothing due here");
-  $("board").innerHTML = `<div class="empty" style="padding:80px 24px">${icon("check")}<strong>You are all caught up</strong><p>No positions match these options. Choose "Everything" to revisit solved ones, lower the error level, or import another match.</p><button class="btn secondary" id="open-options">Change options</button></div>`;
+  clearStage(t("Nothing due here"));
+  $("board").innerHTML = `<div class="empty tall">${icon("check")}<strong>${t("You are all caught up")}</strong><p>${t('No positions match these options. Choose "Everything" to revisit solved ones, lower the error level, or import another match.')}</p><button class="btn secondary" id="open-options">${t("Change options")}</button></div>`;
   $("open-options").addEventListener("click", () => toggleOptions(true));
-  $("panel").innerHTML = `<h2>How practice works</h2><div class="tips"><div>Every error you make in an analysed match becomes a practice position.</div><div>Answer correctly and it counts as solved. Miss it and it comes back first next time.</div></div>`;
+  $("panel").innerHTML = `<h2>${t("How practice works")}</h2><div class="tips"><div>${t("Every error you make in an analysed match becomes a practice position.")}</div><div>${t("Answer correctly and it counts as solved. Miss it and it comes back first next time.")}</div></div>`;
 }
 
 function showDone() {
   state.phase = "done";
   const { answered, correct } = state.session;
   const pct = answered ? Math.round((100 * correct) / answered) : 0;
-  clearStage("Session complete");
+  clearStage(t("Session complete"));
   $("board").innerHTML = `<div class="session-done">
     <div class="score">${correct}<small> / ${answered}</small></div>
-    <h2>${pct >= 80 ? "Strong session" : pct >= 50 ? "Good work" : "Keep at it"}</h2>
-    <p class="muted">${pct}% right. Missed positions stay due until you solve them.</p>
-    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn lg" id="again">${icon("refresh")}Practise again</button><a class="btn lg secondary" href="/">Back to dashboard</a></div></div>`;
-  $("panel").innerHTML = `<h2>Next steps</h2><div class="tips"><div>Look at the positions you missed in Review, with every candidate move.</div><div>Import new matches and their errors join your practice list.</div></div>`;
+    <h2>${pct >= 80 ? t("Strong session") : pct >= 50 ? t("Good work") : t("Keep at it")}</h2>
+    <p class="muted">${t("{pct}% right. Missed positions stay due until you solve them.", { pct })}</p>
+    <div class="row-gap top"><button class="btn lg" id="again">${icon("refresh")}${t("Practise again")}</button><a class="btn lg secondary" href="/">${t("Back to dashboard")}</a></div></div>`;
+  $("panel").innerHTML = `<h2>${t("Next steps")}</h2><div class="tips"><div>${t("Look at the positions you missed in Review, with every candidate move.")}</div><div>${t("Import new matches and their errors join your practice list.")}</div></div>`;
   $("again").addEventListener("click", startSession);
   api.get(`/api/practice/stats?${queryString()}`).then(({ stats }) => renderStats(stats)).catch(() => {});
   Shell.refresh();
 }
 
 function cubeText(d) {
-  if (d.crawford_game) return "Crawford game, no cube";
-  if (d.cube_owner === 0) return d.cube_value > 1 ? `Cube ${d.cube_value}, centred` : "Cube centred";
-  return `Cube ${d.cube_value}, owned by ${esc(playerName(d, d.cube_owner))}`;
+  if (d.crawford_game) return t("Crawford game, no cube");
+  if (d.cube_owner === 0) return d.cube_value > 1 ? t("Cube {n} centred", { n: d.cube_value }) : t("Cube centred");
+  return t("Cube {n}, owned by {name}", { n: d.cube_value, name: esc(playerName(d, d.cube_owner)) });
 }
 
 function scoreText(d) {
-  if (!d.match_length) return "Money game";
-  return `${d.score1}–${d.score2} to ${d.match_length} (${d.match_length - d.score1}-away, ${d.match_length - d.score2}-away)`;
+  if (!d.match_length) return t("Money game");
+  return `${t("{a}–{b} to {n}", { a: d.score1, b: d.score2, n: d.match_length })} (${t("{n}-away", { n: d.match_length - d.score1 })}, ${t("{n}-away", { n: d.match_length - d.score2 })})`;
 }
 
 function renderContext() {
   const d = state.d;
   const who = esc(playerName(d, d.player));
   $("prompt").innerHTML = d.kind === "checker"
-    ? `<span>${who} to play</span>${diceSvg(d.dice)}`
-    : d.kind === "cube" ? `<span>${who}: double or no double?</span>`
-      : `<span>${esc(playerName(d, d.on_roll))} doubles to ${d.cube_value * 2}. ${who}: take or pass?</span>`;
+    ? `<span>${t("{name} to play", { name: who })}</span>${diceSvg(d.dice)}`
+    : d.kind === "cube" ? `<span>${t("{name}: double or no double?", { name: who })}</span>`
+      : `<span>${t("{doubler} doubles to {n}. {name}: take or pass?", { doubler: esc(playerName(d, d.on_roll)), n: d.cube_value * 2, name: who })}</span>`;
   $("facts").innerHTML = [
-    `<span class="chip"><strong>${esc(d.player1)}</strong>vs<strong>${esc(d.player2)}</strong>${esc(shortDate(d.event_date))}</span>`,
-    `<span class="chip">Game ${d.game_no} · move ${d.move_no}</span>`,
+    `<span class="chip"><strong>${esc(d.player1)}</strong>${t("vs")}<strong>${esc(d.player2)}</strong>${esc(shortDate(d.event_date))}</span>`,
+    `<span class="chip">${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })}</span>`,
     `<span class="chip">${scoreText(d)}</span>`,
     `<span class="chip">${cubeText(d)}</span>`,
   ].join("");
@@ -157,7 +157,7 @@ async function showPosition() {
   renderContext();
   if (decision.kind === "checker") {
     if (!decision.legal) {
-      $("board").innerHTML = `<div class="empty">${icon("alert")}<strong>Move list missing</strong><p>This position was analysed before practice existed. Re-analyse its match on the Matches page.</p></div>`;
+      $("board").innerHTML = `<div class="empty">${icon("alert")}<strong>${t("Move list missing")}</strong><p>${t("This position was analysed before practice existed. Re-analyse its match on the Matches page.")}</p></div>`;
       return;
     }
     state.start = Board.onrollFrame(decision);
@@ -194,24 +194,28 @@ function renderAnswerPhase() {
     Board.renderWithLabels($("board"), d, { frame: state.frame, dice: diceState(), interactive: { selectable, targets, selected: state.selected } });
     const complete = moveComplete();
     bar.innerHTML = `
-      <button class="btn secondary" id="undo" ${state.history.length ? "" : "disabled"}>${icon("undo")}Undo <span class="kbd">⌫</span></button>
-      <button class="btn ghost" id="reset" ${state.history.length ? "" : "disabled"}>Reset</button>
-      <span class="hint">${complete ? "Move complete. Check it, or undo to change it." : state.selected !== null ? "Click a green point to move there." : "Click a checker to move it."}</span>
+      <button class="btn secondary" id="undo" ${state.history.length ? "" : "disabled"}>${icon("undo")}${t("Undo")} <span class="kbd">⌫</span></button>
+      <button class="btn ghost" id="reset" ${state.history.length ? "" : "disabled"}>${t("Reset")}</button>
+      <span class="hint">${complete ? t("Move complete. Check it, or undo to change it.") : state.selected !== null ? t("Click a green point to move there.") : t("Click a checker to move it.")}</span>
       <span class="spacer"></span>
-      <button class="btn ghost" id="reveal">${icon("eye")}Show answer</button>
-      <button class="btn lg" id="submit" ${complete ? "" : "disabled"}>Check <span class="kbd">↵</span></button>`;
+      <button class="btn ghost" id="reveal" title="${t("Counts as a miss, so the position comes back later")}">${icon("eye")}${t("Show answer")}</button>
+      <button class="btn lg" id="submit" ${complete ? "" : "disabled"}>${t("Check")} <span class="kbd">↵</span></button>`;
     $("undo").addEventListener("click", undo);
     $("reset").addEventListener("click", reset);
     $("submit").addEventListener("click", submitChecker);
+    if (state.keyboard) {
+      const next = complete ? $("submit") : $("board").querySelector(state.selected !== null ? '.hit[tabindex="0"]:not([data-point="' + state.selected + '"])' : '.hit[tabindex="0"]');
+      if (next) next.focus({ preventScroll: true });
+    }
   } else {
     const take = d.kind === "take";
     Board.renderWithLabels($("board"), d, { bottom: d.player, cubeOffered: take });
-    const [a, b] = take ? [["take", "Take", "T"], ["pass", "Pass", "P"]] : [["no_double", "No double", "N"], ["double", "Double", "D"]];
+    const [a, b] = take ? [["take", t("Take"), "T"], ["pass", t("Pass"), "P"]] : [["no_double", t("No double"), "N"], ["double", t("Double"), "D"]];
     bar.innerHTML = `
       <button class="btn lg secondary" data-action="${a[0]}">${a[1]} <span class="kbd">${a[2]}</span></button>
       <button class="btn lg secondary" data-action="${b[0]}">${b[1]} <span class="kbd">${b[2]}</span></button>
       <span class="spacer"></span>
-      <button class="btn ghost" id="reveal">${icon("eye")}Show answer</button>`;
+      <button class="btn ghost" id="reveal" title="${t("Counts as a miss, so the position comes back later")}">${icon("eye")}${t("Show answer")}</button>`;
     bar.querySelectorAll("[data-action]").forEach((el) => el.addEventListener("click", () => submitCube(el.dataset.action)));
   }
   $("reveal").addEventListener("click", reveal);
@@ -221,15 +225,16 @@ function renderAnswerPhase() {
 function renderAnswerPanel() {
   const d = state.d;
   const past = d.practice && d.practice.length
-    ? `You have seen this position ${plural(d.practice.length, "time")}; last time you ${d.practice[0].revealed ? "looked at the answer" : d.practice[0].correct ? "got it right" : "missed it"}.`
-    : "First time you see this position.";
+    ? t(d.practice[0].revealed ? "Seen {times}; last time you looked at the answer." : d.practice[0].correct ? "Seen {times}; last time you got it right." : "Seen {times}; last time you missed it.", { times: plural(d.practice.length, "time") })
+    : t("First time you see this position.");
   const tips = d.kind === "checker"
-    ? `<div><span class="kbd plain">1</span>Click a checker. With one place to go it moves straight away.</div>
-       <div><span class="kbd plain">2</span>With two places to go they light up green: click one.</div>
-       <div><span class="kbd plain">⌫</span>Undo a step. Esc resets, Enter checks your move.</div>`
-    : `<div>Decide from ${esc(playerName(d, d.player))}'s side, at the bottom of the board.</div>
-       <div>Keys: ${d.kind === "take" ? '<span class="kbd plain">T</span> take, <span class="kbd plain">P</span> pass' : '<span class="kbd plain">N</span> no double, <span class="kbd plain">D</span> double'}.</div>`;
-  $("panel").innerHTML = `<h2>Your turn</h2><div class="tips">${tips}</div><p class="small muted" style="margin-top:14px">${past}</p>`;
+    ? `<div><span class="kbd plain">1</span>${t("Click a checker. With one place to go it moves straight away.")}</div>
+       <div><span class="kbd plain">2</span>${t("With two places to go they light up green: click one.")}</div>
+       <div><span class="kbd plain">⌫</span>${t("Undo a step. Esc resets, Enter checks your move.")}</div>
+       <div><span class="kbd plain">Tab</span>${t("Tab moves between checkers; Enter picks one.")}</div>`
+    : `<div>${t("Decide from {name}'s side, at the bottom of the board.", { name: esc(playerName(d, d.player)) })}</div>
+       <div>${d.kind === "take" ? `<span class="kbd plain">T</span> ${t("Take")} · <span class="kbd plain">P</span> ${t("Pass")}` : `<span class="kbd plain">N</span> ${t("No double")} · <span class="kbd plain">D</span> ${t("Double")}`}</div>`;
+  $("panel").innerHTML = `<h2>${t("Your turn")}</h2><div class="tips">${tips}</div><p class="small muted muted-note">${past}</p>`;
 }
 
 function applyOption(option) {
@@ -244,10 +249,13 @@ function applyOption(option) {
 const smallestDie = (choices) => choices.reduce((a, b) => (b.die < a.die ? b : a));
 
 function onBoardClick(ev) {
-  if (state.phase !== "answer" || !state.d || state.d.kind !== "checker") return;
+  state.keyboard = false;
   const hit = ev.target.closest("[data-point]");
-  if (!hit) return;
-  const point = Number(hit.dataset.point);
+  if (hit) activatePoint(Number(hit.dataset.point));
+}
+
+function activatePoint(point) {
+  if (state.phase !== "answer" || !state.d || state.d.kind !== "checker") return;
   const opts = options();
   if (state.selected !== null) {
     const choices = opts.filter((o) => o.from === state.selected && o.to === point);
@@ -329,15 +337,15 @@ function feedbackHtml() {
   const d = state.d;
   const best = d.kind === "checker" ? bestCandidate(d).move : d.best;
   if (r.revealed) {
-    return `<div class="feedback"><span class="mark">${icon("eye")}</span><div><h3>Answer shown</h3><p>Best: <strong>${esc(best)}</strong>. This one comes back later.</p></div></div>`;
+    return `<div class="feedback"><span class="mark">${icon("eye")}</span><div><h3>${t("Answer shown")}</h3><p>${t("Best")}: <strong>${esc(t(best))}</strong>. ${t("This one comes back later.")}</p></div></div>`;
   }
   if (r.correct) {
-    const text = r.error <= 0.0005 ? "That is the engine's top choice." : `Only <strong>${r.error.toFixed(3)}</strong> behind the best, ${esc(best)}.`;
-    return `<div class="feedback"><span class="mark">${icon("check")}</span><div><h3>${r.error <= 0.0005 ? "Correct, best move!" : "Correct"}</h3><p>${text}</p></div></div>`;
+    const text = r.error <= 0.0005 ? t("That is the engine's top choice.") : t("Only <strong>{error}</strong> behind the best, {best}.", { error: r.error.toFixed(3), best: esc(t(best)) });
+    return `<div class="feedback"><span class="mark">${icon("check")}</span><div><h3>${r.error <= 0.0005 ? t("Correct, best move!") : t("Correct")}</h3><p>${text}</p></div></div>`;
   }
-  const label = r.class ? `${SEVERITY_LABEL[r.class]} ${d.kind === "checker" ? "move" : "decision"}` : "Not quite";
-  const approx = r.approx ? " (rough estimate)" : "";
-  return `<div class="feedback"><span class="mark">${icon("x")}</span><div><h3>${label}</h3><p>You lost <strong>${r.error.toFixed(3)}</strong>${approx}. Best: <strong>${esc(best)}</strong></p></div></div>`;
+  const label = r.class ? severityPhrase({ kind: d.kind, class: r.class }) : t("Not quite");
+  const approx = r.approx ? ` ${t("(rough estimate)")}` : "";
+  return `<div class="feedback"><span class="mark">${icon("x")}</span><div><h3>${label}</h3><p>${t("You lost <strong>{error}</strong>", { error: r.error.toFixed(3) })}${approx}. ${t("Best")}: <strong>${esc(t(best))}</strong></p></div></div>`;
 }
 
 function answerLine(kind, label, text, cost) {
@@ -350,21 +358,21 @@ function checkerAnalysis() {
   const best = bestCandidate(d);
   const played = d.candidates[d.played_index];
   let lines = "";
-  if (!r.revealed) lines += answerLine("yours", "You", r.answer, r.error <= 0.0005 ? "best" : `−${r.error.toFixed(3)}`);
-  lines += answerLine("best", "Best", best.move, "");
-  lines += answerLine("played", "In the game", played.move, d.error > 0.0005 ? `−${d.error.toFixed(3)}` : "best");
-  const toggles = [["yours", "You"], ["best", "Best"], ["played", "Game"]].filter(([k]) => k !== "yours" || !r.revealed)
+  if (!r.revealed) lines += answerLine("yours", t("You"), r.answer, r.error <= 0.0005 ? t("best") : `−${r.error.toFixed(3)}`);
+  lines += answerLine("best", t("Best"), best.move, "");
+  lines += answerLine("played", t("In the game"), played.move, d.error > 0.0005 ? `−${d.error.toFixed(3)}` : t("best"));
+  const toggles = [["yours", t("You")], ["best", t("Best")], ["played", t("In the game")]].filter(([k]) => k !== "yours" || !r.revealed)
     .map(([k, label]) => `<button type="button" class="move-pill" data-arrow="${k}" aria-pressed="${state.arrows.has(k) && state.candidate === null}" style="--pill-color:${Board.COLORS[k]};min-height:32px"><span class="dot"></span>${label}</button>`).join("");
   const rows = d.candidates.map((c, i) => {
     const tags = [];
-    if (c === best) tags.push('<span class="tag best">best</span>');
-    if (!r.revealed && sameSteps(c.steps, r.yourSteps)) tags.push('<span class="tag you">you</span>');
-    if (i === d.played_index) tags.push('<span class="tag game">game</span>');
+    if (c === best) tags.push(`<span class="tag best">${t("best")}</span>`);
+    if (!r.revealed && sameSteps(c.steps, r.yourSteps)) tags.push(`<span class="tag you">${t("you")}</span>`);
+    if (i === d.played_index) tags.push(`<span class="tag game">${t("game")}</span>`);
     return `<tr data-cand="${i}" class="${state.candidate === i ? "selected" : ""}"><td class="rank">${i + 1}</td><td class="mv">${esc(c.move)}${tags.join("")}</td><td class="num diff">${c === best ? formatEquity(c.equity) : (c.equity - best.equity).toFixed(3)}</td></tr>`;
   }).join("");
-  return `<h2>Analysis</h2><div class="answer-lines">${lines}</div>
+  return `<h2>${t("Analysis")}</h2><div class="answer-lines">${lines}</div>
     <div class="move-pills" style="grid-template-columns:repeat(${r.revealed ? 2 : 3},1fr);margin:0 0 14px">${toggles}</div>
-    <table class="cands"><thead><tr><th></th><th>Candidates (click to draw)</th><th class="num">Equity</th></tr></thead><tbody>${rows}</tbody></table>`;
+    <table class="cands"><thead><tr><th></th><th>${t("Candidates (click to draw)")}</th><th class="num">${t("Equity")}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function cubeAnalysis() {
@@ -373,13 +381,13 @@ function cubeAnalysis() {
   const c = d.cube;
   const optimal = Math.max(c.nd, Math.min(c.dt, c.dp));
   const rows = [["No double", c.nd], ["Double, take", c.dt], ["Double, pass", c.dp]].map(([label, eq]) =>
-    `<div class="cube-row ${eq === optimal ? "best" : ""}"><span>${label}${eq === optimal ? '<span class="tag best">best</span>' : ""}</span><span class="eq">${formatEquity(eq)}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("");
-  const win = c.probs ? `<p class="small muted" style="margin-top:12px">${esc(playerName(d, d.on_roll))} wins ${(c.probs[0] * 100).toFixed(1)}% (gammons ${(c.probs[1] * 100).toFixed(1)}%).</p>` : "";
-  return `<h2>Analysis</h2><div class="answer-lines">
-      ${r.revealed ? "" : answerLine("yours", "You", r.answer, r.error <= 0.0005 ? "best" : `−${r.error.toFixed(3)}`)}
-      ${answerLine("best", "Right action", d.best, "")}
-      ${answerLine("played", "In the game", d.action, d.error > 0.0005 ? `−${d.error.toFixed(3)}` : "best")}
-    </div><div class="small muted" style="margin-bottom:8px">Equity for ${esc(playerName(d, d.on_roll))}, the doubler</div><div class="cube-rows">${rows}</div>${win}`;
+    `<div class="cube-row ${eq === optimal ? "best" : ""}"><span>${t(label)}${eq === optimal ? `<span class="tag best">${t("best")}</span>` : ""}</span><span class="eq">${formatEquity(eq)}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("");
+  const win = c.probs ? `<p class="small muted muted-note">${t("{name} wins {win}% (gammons {gammon}%).", { name: esc(playerName(d, d.on_roll)), win: (c.probs[0] * 100).toFixed(1), gammon: (c.probs[1] * 100).toFixed(1) })}</p>` : "";
+  return `<h2>${t("Analysis")}</h2><div class="answer-lines">
+      ${r.revealed ? "" : answerLine("yours", t("You"), t(r.answer), r.error <= 0.0005 ? t("best") : `−${r.error.toFixed(3)}`)}
+      ${answerLine("best", t("Right action"), t(d.best), "")}
+      ${answerLine("played", t("In the game"), t(d.action), d.error > 0.0005 ? `−${d.error.toFixed(3)}` : t("best"))}
+    </div><div class="small muted note-tight">${t("Equity for {name}, the doubler", { name: esc(playerName(d, d.on_roll)) })}</div><div class="cube-rows">${rows}</div>${win}`;
 }
 
 function drawResultBoard() {
@@ -412,9 +420,9 @@ function renderResult() {
   const bar = $("bar");
   bar.className = `answer-bar ${tone}`;
   bar.innerHTML = `${feedbackHtml()}<span class="spacer"></span>
-    ${d.kind === "checker" && !r.correct ? `<button class="btn ghost" id="retry">${icon("reset")}Try again</button>` : ""}
-    <a class="btn ghost" href="/review?match=${d.match_id}&focus=${d.id}&min_error=all">Open in Review</a>
-    <button class="btn lg ${tone === "right" ? "go" : tone === "wrong" ? "stop" : ""}" id="next">${last ? "Finish" : "Continue"} <span class="kbd">↵</span></button>`;
+    ${d.kind === "checker" && !r.correct ? `<button class="btn ghost" id="retry">${icon("reset")}${t("Try again")}</button>` : ""}
+    <a class="btn ghost" href="/review?match=${d.match_id}&focus=${d.id}&min_error=all">${t("Open in Review")}</a>
+    <button class="btn lg ${tone === "right" ? "go" : tone === "wrong" ? "stop" : ""}" id="next">${last ? t("Finish") : t("Continue")} <span class="kbd">↵</span></button>`;
   if ($("retry")) $("retry").addEventListener("click", retry);
   $("next").addEventListener("click", next);
   $("panel").innerHTML = d.kind === "checker" ? checkerAnalysis() : cubeAnalysis();
@@ -457,6 +465,14 @@ function toggleOptions(open) {
 function onKey(ev) {
   if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
   const key = ev.key.toLowerCase();
+  if (key === "tab") state.keyboard = true;
+  const focused = document.activeElement.closest && document.activeElement.closest("[data-point]");
+  if (focused && (key === "enter" || key === " ")) {
+    ev.preventDefault();
+    state.keyboard = true;
+    activatePoint(Number(focused.dataset.point));
+    return;
+  }
   if (state.phase === "result" && key === "enter") {
     ev.preventDefault();
     next();
@@ -478,7 +494,7 @@ async function loadStreak(player) {
     const days = d.practice ? d.practice.streak : 0;
     const el = $("streak");
     el.className = `streak ${days ? "" : "cold"}`;
-    el.innerHTML = `${icon("flame")}${plural(days, "day")} streak`;
+    el.innerHTML = `${icon("flame")}${t("{days} streak", { days: plural(days, "day") })}`;
   } catch (_) {}
 }
 
@@ -488,10 +504,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     state.thresholds = settings.thresholds;
     state.matches = matches.filter((m) => m.status === "done");
     const prefs = loadPrefs();
-    $("s-player").innerHTML = `<option value="">Both players</option>` + players.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join("");
+    $("s-player").innerHTML = `<option value="">${t("Both players")}</option>` + players.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join("");
     $("s-player").value = prefs.player !== undefined ? prefs.player : (settings.me || "");
-    $("s-match").innerHTML = `<option value="">All matches</option>` + state.matches.map((m) =>
-      `<option value="${m.id}">${esc(shortDate(m.event_date))} · ${esc(m.player1)} vs ${esc(m.player2)}</option>`).join("");
+    $("s-match").innerHTML = `<option value="">${t("All matches")}</option>` + state.matches.map((m) =>
+      `<option value="${m.id}">${esc(shortDate(m.event_date))} · ${esc(m.player1)} ${t("vs")} ${esc(m.player2)}</option>`).join("");
     ["severity", "kind", "mode", "match"].forEach((k) => {
       const el = $(`s-${k}`);
       if (prefs[k] !== undefined && [...el.options].some((o) => o.value === prefs[k])) el.value = prefs[k];

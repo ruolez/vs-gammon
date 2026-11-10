@@ -13,7 +13,7 @@ const api = {
       try {
         message = (await response.json()).error || message;
       } catch (_) {}
-      throw new Error(message);
+      throw new Error(I18n.server(message));
     }
     return response;
   },
@@ -76,8 +76,8 @@ const PIPS = {
 };
 
 function dieSvg(value, cls = "die") {
-  const pips = (PIPS[value] || []).map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.1" fill="#1e2a46"/>`).join("");
-  return `<svg class="${cls}" viewBox="0 0 24 24" role="img" aria-label="${value}"><rect x="1" y="1" width="22" height="22" rx="5" fill="#f8fafc" stroke="rgba(15,23,42,.25)"/>${pips}</svg>`;
+  const pips = (PIPS[value] || []).map(([x, y]) => `<circle cx="${x}" cy="${y}" r="2.1" style="fill:var(--die-pip)"/>`).join("");
+  return `<svg class="${cls}" viewBox="0 0 24 24" role="img" aria-label="${value}"><rect x="1" y="1" width="22" height="22" rx="5" style="fill:var(--die);stroke:var(--die-edge)"/>${pips}</svg>`;
 }
 
 function diceSvg(dice) {
@@ -85,10 +85,19 @@ function diceSvg(dice) {
   return `<span class="dice">${dieSvg(dice[0])}${dieSvg(dice[1])}</span>`;
 }
 
-const SEVERITY_LABEL = { very_bad: "Very bad", bad: "Bad", doubtful: "Doubtful" };
+const SEVERITY_LABEL = { very_bad: t("Very bad"), bad: t("Bad"), doubtful: t("Doubtful") };
 
 function severityChip(cls) {
-  return cls ? `<span class="sev ${cls}">${SEVERITY_LABEL[cls]}</span>` : `<span class="sev ok">Good</span>`;
+  return cls ? `<span class="sev ${cls}">${SEVERITY_LABEL[cls]}</span>` : `<span class="sev ok">${t("Good")}</span>`;
+}
+
+function severityPhrase(d) {
+  const noun = d.kind === "checker" ? "move" : "decision";
+  return t({
+    very_bad: { move: "Very bad move", decision: "Very bad decision" },
+    bad: { move: "Bad move", decision: "Bad decision" },
+    doubtful: { move: "Doubtful move", decision: "Doubtful decision" },
+  }[d.class][noun]);
 }
 
 function formatEquity(value) {
@@ -109,11 +118,34 @@ function shortDate(value) {
   if (!value) return "";
   const date = new Date(value.length === 10 ? `${value}T12:00:00` : value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return date.toLocaleDateString(I18n.locale(), { month: "short", day: "numeric" });
 }
 
-function plural(n, word, many = `${word}s`) {
-  return `${n} ${n === 1 ? word : many}`;
+function plural(n, word) {
+  return I18n.tn(word, n);
+}
+
+function term(text, explanation) {
+  return `<span class="term" title="${esc(explanation)}">${text}</span>`;
+}
+
+function confirmDialog({ title, body, action }) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "modal confirm";
+    dialog.innerHTML = `<div class="body"><h3>${esc(title)}</h3><p>${esc(body)}</p></div>
+      <footer><button class="btn ghost" data-answer="no">${t("Cancel")}</button><button class="btn danger" data-answer="yes">${esc(action)}</button></footer>`;
+    document.body.appendChild(dialog);
+    const finish = (answer) => { dialog.close(); dialog.remove(); resolve(answer); };
+    dialog.addEventListener("click", (ev) => {
+      const button = ev.target.closest("[data-answer]");
+      if (button) finish(button.dataset.answer === "yes");
+      else if (ev.target === dialog) finish(false);
+    });
+    dialog.addEventListener("cancel", (ev) => { ev.preventDefault(); finish(false); });
+    dialog.showModal();
+    dialog.querySelector('[data-answer="no"]').focus();
+  });
 }
 
 function toast(message, isError = false) {
@@ -167,21 +199,41 @@ const Theme = {
     if (cycle) {
       const name = { system: "monitor", light: "sun", dark: "moon" }[this.get()];
       cycle.innerHTML = icon(name);
-      cycle.title = `Theme: ${this.get()} (click to change)`;
+      cycle.title = t("Switch theme");
     }
     document.dispatchEvent(new CustomEvent("themechange"));
   },
 };
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => Theme.apply());
 
+/* ---------- text size ---------- */
+const TextSize = {
+  key: "ga-text",
+  steps: [90, 100, 110, 120, 135, 150],
+  get() {
+    try { return parseInt(localStorage.getItem(this.key), 10) || 100; } catch (_) { return 100; }
+  },
+  set(percent) {
+    try { localStorage.setItem(this.key, String(percent)); } catch (_) {}
+    document.documentElement.style.fontSize = `${percent}%`;
+    document.querySelectorAll("[data-text-value]").forEach((el) => (el.textContent = `${percent}%`));
+    document.dispatchEvent(new CustomEvent("textsizechange"));
+  },
+  step(direction) {
+    const i = this.steps.indexOf(this.get());
+    const next = Math.min(this.steps.length - 1, Math.max(0, (i < 0 ? 1 : i) + direction));
+    this.set(this.steps[next]);
+  },
+};
+
 /* ---------- shell ---------- */
 const NAV = [
-  ["/", "dashboard", "Dashboard"],
-  ["/practice", "practice", "Practice"],
-  ["/review", "review", "Review"],
-  ["/matches", "matches", "Matches"],
-  ["/history", "history", "History"],
-  ["/settings", "settings", "Settings"],
+  ["/", "dashboard", t("Dashboard")],
+  ["/practice", "practice", t("Practice")],
+  ["/review", "review", t("Review")],
+  ["/matches", "matches", t("Matches")],
+  ["/history", "history", t("History")],
+  ["/settings", "settings", t("Settings")],
 ];
 
 const BRAND_MARK = `<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="var(--accent)"/><rect x="7" y="7" width="18" height="18" rx="4.5" fill="#fff"/><text x="16" y="20.6" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#1e2a46">64</text></svg>`;
@@ -194,27 +246,39 @@ const Shell = {
     const active = aside.dataset.active;
     aside.innerHTML = `
       <a class="brand" href="/" title="VS Gammon">${BRAND_MARK}<span class="brand-name">VS Gammon</span></a>
-      <nav aria-label="Main">${NAV.map(([href, ic, label]) => `
+      <nav aria-label="${t("Main")}">${NAV.map(([href, ic, label]) => `
         <a class="nav-item ${href === active ? "active" : ""}" href="${href}" title="${label}" ${href === active ? 'aria-current="page"' : ""}>
           ${icon(ic)}<span class="nav-label">${label}</span>${ic === "practice" ? '<span class="badge" id="due-badge" hidden></span>' : ""}
         </a>`).join("")}
       </nav>
       <div class="spacer"></div>
       <div class="sidebar-foot">
-        <div class="watch-line" id="watch-line" title="Watched folders"><i class="dot off"></i><span>Loading…</span></div>
+        <div class="watch-line" id="watch-line" title="${t("Watched folders")}"><i class="dot off"></i><span></span></div>
+        <div class="text-size" role="group" aria-label="${t("Text size")}">
+          <button class="btn ghost sm icon-only foot-btn" id="text-down" title="${t("Smaller text")} (−)" aria-label="${t("Smaller text")}">A−</button>
+          <span class="value" data-text-value>${TextSize.get()}%</span>
+          <button class="btn ghost sm icon-only foot-btn" id="text-up" title="${t("Larger text")} (+)" aria-label="${t("Larger text")}">A+</button>
+        </div>
         <div class="foot-row">
-          <div class="seg theme" role="group" aria-label="Theme">
-            <button type="button" data-theme-choice="light" title="Light">${icon("sun")}<span class="sr-only">Light</span></button>
-            <button type="button" data-theme-choice="system" title="Match system">${icon("monitor")}<span class="sr-only">System</span></button>
-            <button type="button" data-theme-choice="dark" title="Dark">${icon("moon")}<span class="sr-only">Dark</span></button>
+          <div class="seg theme" role="group" aria-label="${t("Theme")}">
+            <button type="button" data-theme-choice="light" title="${t("Light")}">${icon("sun")}<span class="sr-only">${t("Light")}</span></button>
+            <button type="button" data-theme-choice="system" title="${t("Match system")}">${icon("monitor")}<span class="sr-only">${t("System")}</span></button>
+            <button type="button" data-theme-choice="dark" title="${t("Dark")}">${icon("moon")}<span class="sr-only">${t("Dark")}</span></button>
           </div>
-          <button class="btn ghost sm icon-only theme-cycle" id="theme-cycle" title="Switch theme">${icon("moon")}</button>
-          <button class="btn ghost sm icon-only" id="collapse" title="Collapse sidebar (\\)">${icon("panel")}</button>
+          <button class="btn ghost sm icon-only theme-cycle" id="theme-cycle" title="${t("Switch theme")}" aria-label="${t("Switch theme")}">${icon("moon")}</button>
+          <button class="btn ghost sm icon-only foot-btn" id="lang-toggle" title="${t("Language")}" aria-label="${t("Language")}">${I18n.LANGUAGES[I18n.lang === "en" ? "ru" : "en"].short}</button>
+          <button class="btn ghost sm icon-only" id="collapse" title="${t("Collapse sidebar")} (\\)" aria-label="${t("Collapse sidebar")}">${icon("panel")}</button>
         </div>
         <div class="engine-line" id="engine-line"></div>
       </div>`;
     aside.querySelectorAll("[data-theme-choice]").forEach((b) => b.addEventListener("click", () => Theme.set(b.dataset.themeChoice)));
     $("collapse").addEventListener("click", () => this.toggleCollapse());
+    $("text-down").addEventListener("click", () => TextSize.step(-1));
+    $("text-up").addEventListener("click", () => TextSize.step(1));
+    $("lang-toggle").addEventListener("click", () => {
+      I18n.set(I18n.lang === "en" ? "ru" : "en");
+      location.reload();
+    });
     $("theme-cycle").addEventListener("click", () => {
       const order = ["system", "light", "dark"];
       Theme.set(order[(order.indexOf(Theme.get()) + 1) % order.length]);
@@ -240,9 +304,9 @@ const Shell = {
       if (watch) {
         const on = info.watching.length > 0;
         const home = (p) => p.replace(/^\/Users\/[^/]+/, "~");
-        watch.innerHTML = `<i class="dot ${on ? "" : "off"}"></i><span>${on ? `Watching ${esc(info.watching.map(home).join(", "))}` : '<a href="/settings#folders">Watch a folder</a> to import automatically'}</span>`;
+        watch.innerHTML = `<i class="dot ${on ? "" : "off"}"></i><span>${on ? t("Watching {paths}", { paths: esc(info.watching.map(home).join(", ")) }) : t('<a href="/settings#folders">Watch a folder</a> to import automatically')}</span>`;
       }
-      if ($("engine-line")) $("engine-line").textContent = info.engine ? info.engine.replace(/ \d{8}$/, "") : "Engine not found";
+      if ($("engine-line")) $("engine-line").textContent = info.engine ? info.engine.replace(/ \d{8}$/, "") : t("Engine not found");
       document.dispatchEvent(new CustomEvent("shellinfo", { detail: info }));
     } catch (_) {}
   },
@@ -250,5 +314,8 @@ const Shell = {
 
 document.addEventListener("DOMContentLoaded", () => Shell.render());
 document.addEventListener("keydown", (ev) => {
-  if (ev.key === "\\" && !["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) Shell.toggleCollapse();
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName) || ev.metaKey || ev.ctrlKey) return;
+  if (ev.key === "\\") Shell.toggleCollapse();
+  if (ev.key === "+" || ev.key === "=") TextSize.step(1);
+  if (ev.key === "-" || ev.key === "_") TextSize.step(-1);
 });

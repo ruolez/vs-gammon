@@ -13,7 +13,7 @@ colors:
   text: "#e7ecf5"
   text-2: "#aab4c6"
   text-3: "#8590a4"
-  text-4: "#5d687c"
+  text-4: "#7f8b9f"
   accent: "#2f6feb"
   accent-hover: "#2563eb"
   accent-text: "#8fb4ff"
@@ -55,19 +55,19 @@ colors:
   line-strong-light: "rgba(15, 23, 42, 0.16)"
   text-light: "#0f172a"
   text-2-light: "#475569"
-  text-3-light: "#64748b"
-  text-4-light: "#94a3b8"
+  text-3-light: "#55647b"
+  text-4-light: "#5f6e85"
   accent-light: "#2563eb"
   accent-hover-light: "#1d4ed8"
   accent-text-light: "#1d4ed8"
   accent-soft-light: "rgba(37, 99, 235, 0.1)"
-  good-light: "#15803d"
+  good-light: "#136c34"
   good-soft-light: "rgba(22, 163, 74, 0.11)"
-  doubtful-light: "#a16207"
+  doubtful-light: "#8a5305"
   doubtful-soft-light: "rgba(234, 179, 8, 0.16)"
-  bad-light: "#c2410c"
+  bad-light: "#b23a0a"
   bad-soft-light: "rgba(249, 115, 22, 0.13)"
-  vbad-light: "#dc2626"
+  vbad-light: "#c21d1d"
   vbad-soft-light: "rgba(220, 38, 38, 0.1)"
   board-frame-light: "#1e2b4a"
   board-felt-light: "#7896e3"
@@ -321,6 +321,7 @@ The shell refuses the generic Material-card look and the "grey screen with one b
 - Severity ladder: doubtful yellow, bad orange, very bad red, good green; always labelled.
 - Move arrows: red = game move, green = best, amber = yours, white = any candidate.
 - Inter throughout, tabular figures on every number, tight negative tracking on large type.
+- Type sizes are in rem so the reader's text size setting (90–150%) scales the whole interface. Inter ships Latin and Cyrillic subsets; Russian runs about a third longer than English, so controls wrap rather than clip.
 - Keyboard-first: keycaps shown inline in buttons, `\` collapses the sidebar rail.
 
 ## Colors

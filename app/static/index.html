@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashboard · VS Gammon</title>
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/css/style.css">
-  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"")}catch(e){}</script>
+  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"");var ts=parseInt(localStorage.getItem("ga-text"),10);if(ts)d.style.fontSize=ts+"%"}catch(e){}</script>
 </head>
 <body>
 <div class="app">
@@ -31,7 +32,7 @@
         <div id="chart"></div>
       </section>
       <section class="panel span-5">
-        <div class="panel-head"><h2>Where you lose equity</h2><span class="hint">Last 10 matches</span></div>
+        <div class="panel-head"><h2><span class="term" title="Equity is your expected result from a position. A mistake loses equity; 0.1 is roughly 5% in winning chances.">Where you lose equity</span></h2><span class="hint">Last 10 matches</span></div>
         <div class="phase-list" id="phases"></div>
       </section>
       <section class="panel span-7">
@@ -53,6 +54,8 @@
 
   </main>
 </div>
+<script src="/static/js/i18n-ru.js"></script>
+<script src="/static/js/i18n.js"></script>
 <script src="/static/js/core.js"></script>
 <script src="/static/js/moves.js"></script>
 <script src="/static/js/board.js"></script>

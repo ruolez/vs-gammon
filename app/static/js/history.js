@@ -1,8 +1,8 @@
 const KINDS = {
-  imported: ["Imported", "file"], analysed: ["Analysed", "pulse"], analysis_failed: ["Analysis failed", "alert"],
-  import_failed: ["Import failed", "alert"], duplicate: ["Already imported", "copy"], reanalysis: ["Re-analysis requested", "refresh"],
-  exported: ["Exported", "download"], deleted: ["Deleted", "trash"], folder_added: ["Watching a folder", "folder"],
-  folder_removed: ["Stopped watching", "folder"],
+  imported: [t("Imported"), "file"], analysed: [t("Analysed"), "pulse"], analysis_failed: [t("Analysis failed"), "alert"],
+  import_failed: [t("Import failed"), "alert"], duplicate: [t("Already imported"), "copy"], reanalysis: [t("Re-analysis requested"), "refresh"],
+  exported: [t("Exported"), "download"], deleted: [t("Deleted"), "trash"], folder_added: [t("Watching a folder"), "folder"],
+  folder_removed: [t("Stopped watching"), "folder"],
 };
 let events = [];
 let oldest = null;
@@ -12,24 +12,24 @@ function dayLabel(at) {
   const today = new Date();
   const yesterday = new Date(Date.now() - 86400000);
   const same = (a, b) => a.toDateString() === b.toDateString();
-  if (same(date, today)) return "Today";
-  if (same(date, yesterday)) return "Yesterday";
-  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+  if (same(date, today)) return t("Today");
+  if (same(date, yesterday)) return t("Yesterday");
+  return date.toLocaleDateString(I18n.locale(), { weekday: "long", month: "long", day: "numeric" });
 }
 
 function eventRow(e) {
   const [title, ic] = KINDS[e.kind] || [e.kind, "history"];
-  const time = new Date(e.at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  const link = e.match_id && e.match_status === "done" ? `<a class="btn sm secondary" href="/review?match=${e.match_id}">Review</a>` : "";
+  const time = new Date(e.at).toLocaleTimeString(I18n.locale(), { hour: "numeric", minute: "2-digit" });
+  const link = e.match_id && e.match_status === "done" ? `<a class="btn sm secondary" href="/review?match=${e.match_id}">${t("Review")}</a>` : "";
   return `<div class="event"><span class="ic ${esc(e.kind)}">${icon(ic)}</span>
-    <div><div class="title">${title}</div><div class="msg">${esc(e.message)}</div></div>
+    <div><div class="title">${title}</div><div class="msg">${esc(I18n.server(e.message))}</div></div>
     <div class="time"><span title="${esc(e.at)}">${time}</span>${link}</div></div>`;
 }
 
 function render() {
   const el = $("timeline");
   if (!events.length) {
-    el.innerHTML = `<div class="empty">${icon("history")}<strong>Nothing here yet</strong><p>Imports, analyses and exports will show up here as they happen.</p></div>`;
+    el.innerHTML = `<div class="empty">${icon("history")}<strong>${t("Nothing here yet")}</strong><p>${t("Imports, analyses and exports will show up here as they happen.")}</p></div>`;
     return;
   }
   let html = "";

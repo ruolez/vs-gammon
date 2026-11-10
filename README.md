@@ -38,6 +38,8 @@ Add `--yes` to skip questions. The shortcut writes a log to `~/Library/Logs/VS G
 
 The sidebar has Dashboard, Practice (with the number of positions due), Review, Matches, History and Settings. The theme switch at its foot cycles light, dark and "match my Mac"; the sidebar collapses to an icon rail with the panel button or the `\` key.
 
+The app speaks English and Russian: the EN/RU button at the foot of the sidebar switches at once, and Settings › Appearance has the same choice. A− and A+ next to it change the text size from 90% to 150% (also the `+` and `-` keys). Language, text size and theme are remembered in the browser.
+
 - **Dashboard** (home): PR per match, errors per match, practice accuracy and streak, where you lose equity by game phase (opening, middle game, race, bear-off, cube), your biggest recent mistakes with mini boards, and recent matches. Settings › You picks which player is you; otherwise the most frequent player is used.
 
 0. **Watch a folder (optional):** in Settings › Watched folders, click **Add folder…** and pick the folder your match files download to (e.g. Downloads).

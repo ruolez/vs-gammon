@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Settings · VS Gammon</title>
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/css/style.css">
-  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"")}catch(e){}</script>
+  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"");var ts=parseInt(localStorage.getItem("ga-text"),10);if(ts)d.style.fontSize=ts+"%"}catch(e){}</script>
 </head>
 <body>
 <div class="app">
@@ -25,24 +26,43 @@
       <div>
         <section class="panel panel-pad" id="appearance">
           <h2>Appearance</h2>
-          <p class="desc">Light or dark, or follow your Mac.</p>
-          <div class="seg" role="group" aria-label="Theme" id="theme-seg">
-            <button type="button" data-theme-choice="light"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>Light</button>
-            <button type="button" data-theme-choice="system"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg>System</button>
-            <button type="button" data-theme-choice="dark"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>Dark</button>
+          <p class="desc">How the app looks in this browser.</p>
+          <div class="setting-row first">
+            <div class="text"><strong>Theme</strong><span>Light or dark, or follow your Mac</span></div>
+            <div class="seg" role="group" aria-label="Theme" id="theme-seg">
+              <button type="button" data-theme-choice="light">Light</button>
+              <button type="button" data-theme-choice="system">System</button>
+              <button type="button" data-theme-choice="dark">Dark</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="text"><strong>Language</strong><span>Menus, labels and messages</span></div>
+            <div class="seg" role="group" aria-label="Language" id="lang-seg">
+              <button type="button" data-lang="en">English</button>
+              <button type="button" data-lang="ru">Русский</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="text"><strong>Text size</strong><span>Also with the + and − keys</span></div>
+            <div class="row-gap">
+              <button type="button" class="btn secondary sm" id="text-smaller" aria-label="Smaller text">A−</button>
+              <span class="tabular" id="text-value"></span>
+              <button type="button" class="btn secondary sm" id="text-larger" aria-label="Larger text">A+</button>
+              <button type="button" class="btn ghost sm" id="text-reset">Reset</button>
+            </div>
           </div>
         </section>
         <section class="panel panel-pad" id="player">
           <h2>Default player</h2>
           <p class="desc">The player whose moves you want to see. Review, Practice and the dashboard show only this player's decisions by default. You can still switch players on each page, and the app remembers what you pick there in this browser.</p>
-          <div class="setting-row" style="border-top:0">
+          <div class="setting-row first">
             <div class="text"><strong>Player name</strong><span>Picked from the matches you imported</span></div>
-            <select id="me" style="min-width:220px"></select>
+            <select id="me" aria-label="Player name"></select>
           </div>
         </section>
         <section class="panel panel-pad" id="grading">
           <h2>Error grading</h2>
-          <p class="desc">How much equity a decision has to lose to count as an error. Changing this regrades every match straight away; nothing is re-analysed.</p>
+          <p class="desc">How much <span class="term" title="Equity is your expected result from a position. A mistake loses equity; 0.1 is roughly 5% in winning chances.">equity</span> a decision has to lose to count as an error. Changes save by themselves and regrade every match straight away; nothing is re-analysed.</p>
           <div class="seg preset-seg" role="radiogroup" aria-label="Grading preset" id="preset-seg">
             <button type="button" data-preset="gnubg" role="radio">GNU Backgammon</button>
             <button type="button" data-preset="xg" role="radio">XG style</button>
@@ -53,22 +73,21 @@
             <div class="field"><label for="t-bad"><span class="sev bad">Bad</span> from</label><input type="number" id="t-bad" step="0.005" min="0.001"></div>
             <div class="field"><label for="t-very_bad"><span class="sev very_bad">Very bad</span> from</label><input type="number" id="t-very_bad" step="0.005" min="0.001"></div>
           </div>
-          <button class="btn" id="save-thresholds">Save grading</button>
         </section>
         <section class="panel panel-pad" id="engine">
           <h2>Analysis engine</h2>
-          <p class="desc">GNU Backgammon analyses every checker play and cube decision. Its 2-ply ("World class") matches XG's 3-ply. Changes apply to new imports and re-analysis.</p>
-          <div class="setting-row" style="border-top:0">
+          <p class="desc">GNU Backgammon analyses every checker play and cube decision. Its 2-ply ("World class") matches XG's 3-ply. Changes save by themselves and apply to new imports and re-analysis.</p>
+          <div class="setting-row first">
             <div class="text"><strong>Depth</strong><span>Deeper is stronger and slower</span></div>
-            <select id="plies"><option value="0">0-ply, fast and rough</option><option value="1">1-ply</option><option value="2">2-ply, World class</option><option value="3">3-ply, slow</option></select>
+            <select id="plies" aria-label="Depth"><option value="0">0-ply, fast and rough</option><option value="1">1-ply</option><option value="2">2-ply, World class</option><option value="3">3-ply, slow</option></select>
           </div>
           <div class="setting-row">
             <div class="text"><strong>CPU threads</strong><span>How many cores the engine may use</span></div>
-            <input type="number" id="threads" min="1" max="64" style="width:96px">
+            <input type="number" id="threads" min="1" max="64" aria-label="CPU threads">
           </div>
           <div class="setting-row">
             <div class="text"><strong>Re-analyse everything</strong><span id="engine-version">Runs every match again with the settings above</span></div>
-            <div style="display:flex;gap:8px"><button class="btn secondary" id="reanalyze-all">Re-analyse all</button><button class="btn" id="save-engine">Save</button></div>
+            <button class="btn secondary" id="reanalyze-all">Re-analyse all</button>
           </div>
         </section>
         <section class="panel panel-pad" id="folders">
@@ -77,8 +96,8 @@
           <div id="folder-list"></div>
           <div class="setting-row">
             <div class="text"><strong>Check for new files every</strong><span>Files still downloading wait for the next check</span></div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <select id="watch-interval"><option value="15">15 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option><option value="300">5 minutes</option></select>
+            <div class="row-gap">
+              <select id="watch-interval" aria-label="Check for new files every"><option value="15">15 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option><option value="300">5 minutes</option></select>
               <button class="btn secondary" id="scan-now">Check now</button>
               <button class="btn" id="add-folder">Add folder</button>
             </div>
@@ -90,6 +109,8 @@
 
   </main>
 </div>
+<script src="/static/js/i18n-ru.js"></script>
+<script src="/static/js/i18n.js"></script>
 <script src="/static/js/core.js"></script>
 <script src="/static/js/folders.js"></script>
 <script src="/static/js/settings.js"></script>

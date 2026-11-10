@@ -53,7 +53,7 @@ const Board = (() => {
     const n = owner === 1 ? 1 : 2;
     let svg = `<circle cx="${cx}" cy="${cy}" r="${R}" style="fill:var(--checker-${n});stroke:var(--checker-${n}-edge)" stroke-width="1.3"/>`;
     svg += `<circle cx="${cx}" cy="${cy}" r="${R * 0.62}" fill="none" style="stroke:var(--checker-${n}-edge)" stroke-width="1" opacity="0.55"/>`;
-    if (ring) svg += `<circle cx="${cx}" cy="${cy}" r="${R + 3}" fill="none" stroke="${ring}" stroke-width="3"/>`;
+    if (ring) svg += `<circle cx="${cx}" cy="${cy}" r="${R + 3}" fill="none" style="stroke:${ring}" stroke-width="3"/>`;
     if (label) svg += `<text x="${cx}" y="${cy + 4.5}" text-anchor="middle" font-size="13" font-weight="700" style="fill:var(--checker-${n}-text)" font-family="Inter, sans-serif">${label}</text>`;
     return svg;
   }
@@ -86,8 +86,8 @@ const Board = (() => {
       5: [[0.26, 0.26], [0.74, 0.26], [0.5, 0.5], [0.26, 0.74], [0.74, 0.74]],
       6: [[0.28, 0.24], [0.72, 0.24], [0.28, 0.5], [0.72, 0.5], [0.28, 0.76], [0.72, 0.76]],
     }[value] || [];
-    let svg = `<g opacity="${used ? 0.28 : 1}"><rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${size * 0.18}" fill="#f8fafc" stroke="rgba(15,23,42,.35)"/>`;
-    spots.forEach(([sx, sy]) => (svg += `<circle cx="${x + sx * size}" cy="${y + sy * size}" r="${pip}" fill="#1e2a46"/>`));
+    let svg = `<g opacity="${used ? 0.28 : 1}"><rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${size * 0.18}" style="fill:var(--die);stroke:var(--die-edge)"/>`;
+    spots.forEach(([sx, sy]) => (svg += `<circle cx="${x + sx * size}" cy="${y + sy * size}" r="${pip}" style="fill:var(--die-pip)"/>`));
     return svg + "</g>";
   }
 
@@ -108,15 +108,15 @@ const Board = (() => {
     const x = BAR_X + BAR / 2 - size / 2;
     let y = H / 2 - size / 2;
     let value = cube.owner === 0 && cube.value === 1 ? 64 : cube.value;
-    let stroke = "rgba(15,23,42,.35)";
+    let stroke = "var(--die-edge)";
     if (cube.offered) {
       value = cube.value * 2;
       stroke = "var(--arrow-game)";
     } else if (cube.owner !== 0) {
       y = cube.owner === bottomPlayer ? BOTTOM - size - 4 : TOP + 4;
     }
-    return `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="7" fill="#f8fafc" style="stroke:${stroke}" stroke-width="${cube.offered ? 3 : 1}"/>` +
-      `<text x="${x + size / 2}" y="${y + size / 2 + 5.5}" text-anchor="middle" font-size="15" font-weight="800" fill="#1e2a46" font-family="Inter, sans-serif">${value}</text>`;
+    return `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="6" style="fill:var(--die);stroke:${stroke}" stroke-width="${cube.offered ? 3 : 1}"/>` +
+      `<text x="${x + size / 2}" y="${y + size / 2 + 5.5}" text-anchor="middle" font-size="15" font-weight="800" style="fill:var(--die-pip)" font-family="Inter, sans-serif">${value}</text>`;
   }
 
   function borneOff(count, atBottom, owner) {
@@ -157,23 +157,27 @@ const Board = (() => {
 
   function targetSvg(point) {
     if (point === 0) {
-      return `<rect x="${TRAY_X + 3}" y="${H / 2 + 8}" width="${TRAY - 6}" height="${BOTTOM - H / 2 - 8}" rx="6" fill="rgba(34,197,94,0.32)" stroke="#22c55e" stroke-width="2"/>`;
+      return `<rect x="${TRAY_X + 3}" y="${H / 2 + 8}" width="${TRAY - 6}" height="${BOTTOM - H / 2 - 8}" rx="6" style="fill:var(--target-fill);stroke:var(--target)" stroke-width="2"/>`;
     }
     const x = pointX(point);
     const bottomRow = point <= 12;
     const baseY = bottomRow ? BOTTOM : TOP;
     const tipY = bottomRow ? BOTTOM - POINT_H : TOP + POINT_H;
-    return `<polygon points="${x + 1},${baseY} ${x + POINT_W - 1},${baseY} ${x + POINT_W / 2},${tipY}" fill="rgba(34,197,94,0.5)" stroke="#22c55e" stroke-width="2" stroke-linejoin="round"/>`;
+    return `<polygon points="${x + 1},${baseY} ${x + POINT_W - 1},${baseY} ${x + POINT_W / 2},${tipY}" style="fill:var(--target-fill);stroke:var(--target)" stroke-width="2" stroke-linejoin="round"/>`;
   }
 
-  function hitAreas() {
+  function hitAreas(interactive) {
+    const attrs = (point, label) => {
+      const live = interactive.selectable.has(point) || interactive.targets.has(point);
+      return live ? `tabindex="0" role="button" aria-label="${label}"` : "";
+    };
     let svg = "";
     for (let point = 1; point <= 24; point++) {
       const y = point <= 12 ? H / 2 : TOP;
-      svg += `<rect class="hit" data-point="${point}" x="${pointX(point)}" y="${y}" width="${POINT_W}" height="${(BOTTOM - TOP) / 2}" fill="transparent"/>`;
+      svg += `<rect class="hit" data-point="${point}" ${attrs(point, t("Point {n}", { n: point }))} x="${pointX(point)}" y="${y}" width="${POINT_W}" height="${(BOTTOM - TOP) / 2}" fill="transparent"/>`;
     }
-    svg += `<rect class="hit" data-point="25" x="${BAR_X}" y="${TOP}" width="${BAR}" height="${BOTTOM - TOP}" fill="transparent"/>`;
-    svg += `<rect class="hit" data-point="0" x="${TRAY_X}" y="${TOP}" width="${TRAY}" height="${BOTTOM - TOP}" fill="transparent"/>`;
+    svg += `<rect class="hit" data-point="25" ${attrs(25, t("Bar"))} x="${BAR_X}" y="${TOP}" width="${BAR}" height="${BOTTOM - TOP}" fill="transparent"/>`;
+    svg += `<rect class="hit" data-point="0" ${attrs(0, t("Bear off"))} x="${TRAY_X}" y="${TOP}" width="${TRAY}" height="${BOTTOM - TOP}" fill="transparent"/>`;
     return svg;
   }
 
@@ -187,7 +191,7 @@ const Board = (() => {
     const mini = !!opts.mini;
     const half = 6 * POINT_W;
 
-    let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Backgammon position" class="board-svg${interactive ? " interactive" : ""}">`;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${t("Backgammon position")}" class="board-svg${interactive ? " interactive" : ""}">`;
     if (opts.arrows) {
       svg += `<defs>${Object.keys(COLORS).map((k) => `<marker id="arrow-${k}" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16" refX="12" refY="8" orient="auto"><path d="M1,1.5 L15,8 L1,14.5 z" style="fill:${COLORS[k]}"/></marker>`).join("")}</defs>`;
     }
@@ -214,14 +218,14 @@ const Board = (() => {
       if (!count) continue;
       let ring = null;
       if (interactive && count > 0) {
-        if (interactive.selected === point) ring = "#facc15";
-        else if (interactive.selectable.has(point)) ring = "rgba(250,204,21,0.6)";
+        if (interactive.selected === point) ring = "var(--pick)";
+        else if (interactive.selectable.has(point)) ring = "var(--pick-soft)";
       }
       svg += stack(point, Math.abs(count), count > 0 ? bottomPlayer : topPlayer, ring);
     }
     if (frame[25] > 0) {
       let ring = null;
-      if (interactive && interactive.selectable.has(25)) ring = interactive.selected === 25 ? "#facc15" : "rgba(250,204,21,0.6)";
+      if (interactive && interactive.selectable.has(25)) ring = interactive.selected === 25 ? "var(--pick)" : "var(--pick-soft)";
       svg += stack(25, frame[25], bottomPlayer, ring);
     }
     if (frame[0] < 0) svg += opponentBar(-frame[0], topPlayer);
@@ -240,14 +244,14 @@ const Board = (() => {
       const start = opts.arrowStart || onrollFrame(d);
       opts.arrows.forEach((a) => (svg += arrowSvg(start, a.steps, a.kind)));
     }
-    if (interactive) svg += hitAreas();
+    if (interactive) svg += hitAreas(interactive);
     return svg + "</svg>";
   }
 
   function sideLabel(d, player, pipCount, note) {
     const score = player === 1 ? d.score1 : d.score2;
-    const scoreText = d.match_length ? ` · ${score} of ${d.match_length}` : "";
-    return `<div class="board-label"><span class="who"><span class="swatch p${player}"></span><strong>${esc(playerName(d, player))}</strong><span>${scoreText}</span></span><span class="pips">${note ? `${note} · ` : ""}${pipCount} pips</span></div>`;
+    const scoreText = d.match_length ? ` · ${t("{score} of {length}", { score, length: d.match_length })}` : "";
+    return `<div class="board-label"><span class="who"><span class="swatch p${player}"></span><strong>${esc(playerName(d, player))}</strong><span>${scoreText}</span></span><span class="pips">${note ? `${note} · ` : ""}${plural(pipCount, "pip")}</span></div>`;
   }
 
   function renderWithLabels(container, d, opts = {}) {
@@ -257,9 +261,9 @@ const Board = (() => {
     if (bottom !== d.on_roll) frame = flip(frame);
     const p = pips(frame);
     container.innerHTML =
-      sideLabel(d, top, p.top, d.crawford_game ? "Crawford game" : "") +
+      sideLabel(d, top, p.top, d.crawford_game ? t("Crawford game") : "") +
       render(d, opts) +
-      sideLabel(d, bottom, p.bottom, bottom === d.on_roll ? "on roll" : "");
+      sideLabel(d, bottom, p.bottom, bottom === d.on_roll ? t("on roll") : "");
   }
 
   return { render, renderWithLabels, pips, onrollFrame, flip, COLORS };

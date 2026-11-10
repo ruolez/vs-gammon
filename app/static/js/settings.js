@@ -24,7 +24,7 @@ async function load() {
   $("threads").value = settings.threads;
   const interval = $("watch-interval");
   if ([...interval.options].some((o) => o.value === String(settings.watch_interval))) interval.value = String(settings.watch_interval);
-  $("me").innerHTML = `<option value="">Not set: show both players</option>` + players.map((pl) => `<option value="${esc(pl.name)}">${esc(pl.name)} · ${plural(pl.matches, "match", "matches")}</option>`).join("");
+  $("me").innerHTML = `<option value="">${t("Not set: show both players")}</option>` + players.map((pl) => `<option value="${esc(pl.name)}">${esc(pl.name)} · ${plural(pl.matches, "match")}</option>`).join("");
   $("me").value = settings.me || "";
 }
 
@@ -52,31 +52,56 @@ document.addEventListener("DOMContentLoaded", () => {
       practice.player = me;
       localStorage.setItem("gammon-practice", JSON.stringify(practice));
     } catch (_) {}
-    save({ me }, me ? `Showing ${me}'s moves by default` : "Showing both players by default");
+    save({ me }, me ? t("Showing {name}'s moves by default", { name: me }) : t("Showing both players by default"));
   });
+  const saveGrading = () => {
+    const body = { preset };
+    if (preset === "custom") body.thresholds = Object.fromEntries(["doubtful", "bad", "very_bad"].map((k) => [k, parseFloat($(`t-${k}`).value)]));
+    save(body, t("Grading saved. Every match is regraded."));
+  };
   document.querySelectorAll("#preset-seg [data-preset]").forEach((b) => b.addEventListener("click", () => {
     setPreset(b.dataset.preset);
     if (presets[b.dataset.preset]) setThresholdInputs(presets[b.dataset.preset]);
+    saveGrading();
   }));
-  ["doubtful", "bad", "very_bad"].forEach((k) => $(`t-${k}`).addEventListener("input", () => setPreset("custom")));
-  $("save-thresholds").addEventListener("click", () => {
-    const body = { preset };
-    if (preset === "custom") body.thresholds = Object.fromEntries(["doubtful", "bad", "very_bad"].map((k) => [k, parseFloat($(`t-${k}`).value)]));
-    save(body, "Grading saved. Every match is regraded.");
+  ["doubtful", "bad", "very_bad"].forEach((k) => {
+    $(`t-${k}`).addEventListener("input", () => setPreset("custom"));
+    $(`t-${k}`).addEventListener("change", saveGrading);
   });
-  $("save-engine").addEventListener("click", () => save({ plies: Number($("plies").value), threads: Number($("threads").value) },
-    "Engine settings saved. Re-analyse to apply them to existing matches."));
+  const saveEngine = () => save({ plies: Number($("plies").value), threads: Number($("threads").value) },
+    t("Engine settings saved. Re-analyse to apply them to existing matches."));
+  $("plies").addEventListener("change", saveEngine);
+  $("threads").addEventListener("change", saveEngine);
+  const showText = () => ($("text-value").textContent = `${TextSize.get()}%`);
+  $("text-smaller").addEventListener("click", () => TextSize.step(-1));
+  $("text-larger").addEventListener("click", () => TextSize.step(1));
+  $("text-reset").addEventListener("click", () => TextSize.set(100));
+  document.addEventListener("textsizechange", showText);
+  showText();
+  document.querySelectorAll("#lang-seg [data-lang]").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.lang === I18n.lang));
+    b.addEventListener("click", () => {
+      if (b.dataset.lang === I18n.lang) return;
+      I18n.set(b.dataset.lang);
+      location.reload();
+    });
+  });
+  const links = [...document.querySelectorAll(".settings nav a")];
+  const spy = new IntersectionObserver((entries) => entries.forEach((e) => {
+    if (e.isIntersecting) links.forEach((a) => a.classList.toggle("current", a.getAttribute("href") === `#${e.target.id}`));
+  }), { rootMargin: "-20% 0px -70% 0px" });
+  document.querySelectorAll(".settings section[id]").forEach((el) => spy.observe(el));
   $("reanalyze-all").addEventListener("click", async () => {
     try {
       const { matches } = await api.get("/api/matches");
       await Promise.all(matches.map((m) => api.post(`/api/matches/${m.id}/reanalyze`)));
-      toast(`${plural(matches.length, "match", "matches")} queued for analysis`);
+      toast(t("{matches} queued for analysis", { matches: plural(matches.length, "match") }));
     } catch (err) {
       toast(err.message, true);
     }
   });
-  $("watch-interval").addEventListener("change", () => save({ watch_interval: Number($("watch-interval").value) }, "Check interval saved"));
+  $("watch-interval").addEventListener("change", () => save({ watch_interval: Number($("watch-interval").value) }, t("Check interval saved")));
   document.addEventListener("shellinfo", (ev) => {
-    if (ev.detail.engine) $("engine-version").textContent = `Runs every match again with ${ev.detail.engine.replace(/ \d{8}$/, "")}`;
+    if (ev.detail.engine) $("engine-version").textContent = t("Runs every match again with {engine}", { engine: ev.detail.engine.replace(/ \d{8}$/, "") });
   });
 });

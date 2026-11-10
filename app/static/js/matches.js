@@ -13,7 +13,7 @@ function playerLine(m, player) {
   return `<div class="pline">
     <span class="name">${esc(name)}${elo ? `<small>${esc(elo)}</small>` : ""}</span>
     <span class="pr">${s && s.pr !== null ? `PR ${s.pr.toFixed(1)}` : ""}</span>
-    <span class="counts" aria-label="doubtful, bad, very bad">${s ? counts(s) : ""}</span>
+    <span class="counts" aria-label="${t("doubtful, bad, very bad")}">${s ? counts(s) : ""}</span>
   </div>`;
 }
 
@@ -25,34 +25,34 @@ function scoreLine(m) {
 }
 
 function statusLabel(m) {
-  const text = { queued: "Queued", analyzing: "Analysing", done: "Analysed", error: "Failed" }[m.status] || m.status;
+  const text = { queued: t("Queued"), analyzing: t("Analysing"), done: t("Analysed"), error: t("Failed") }[m.status] || m.status;
   return `<span class="status ${m.status}" ${m.error ? `title="${esc(m.error)}"` : ""}>${text}</span>`;
 }
 
 function renderMatches(matches) {
   const el = $("matches");
   $("matches-sub").textContent = matches.length
-    ? `${plural(matches.length, "match", "matches")} imported. Each one is analysed move by move.`
-    : "Every match you import is analysed move by move.";
+    ? t("{matches} imported. Each one is analysed move by move.", { matches: plural(matches.length, "match") })
+    : t("Every match you import is analysed move by move.");
   if (!matches.length) {
-    el.innerHTML = `<div class="empty">${icon("matches")}<strong>No matches yet</strong><p>Drop a .mat file above, or watch a folder so new downloads are imported automatically.</p></div>`;
+    el.innerHTML = `<div class="empty">${icon("matches")}<strong>${t("No matches yet")}</strong><p>${t("Drop a .mat file above, or watch a folder so new downloads are imported automatically.")}</p></div>`;
     return;
   }
-  el.innerHTML = `<table class="table">
-    <thead><tr><th>Date</th><th>Match</th><th>Players · PR · doubtful / bad / very bad</th><th>Status</th><th class="num">Actions</th></tr></thead>
+  el.innerHTML = `<table class="table stack">
+    <thead><tr><th>${t("Date")}</th><th>${t("Match")}</th><th>${t("Players · PR · doubtful / bad / very bad")}</th><th>${t("Status")}</th><th class="num">${t("Actions")}</th></tr></thead>
     <tbody>${matches.map((m) => {
-      const source = m.source === "folder" ? `From ${esc((m.source_path || "").replace(/^\/Users\/[^/]+/, "~"))}` : `Uploaded ${esc(m.filename)}`;
-      const length = m.match_length ? `${m.match_length}-point` : "Money";
+      const source = m.source === "folder" ? t("From {path}", { path: esc((m.source_path || "").replace(/^\/Users\/[^/]+/, "~")) }) : t("Uploaded {file}", { file: esc(m.filename) });
+      const length = m.match_length ? t("{n}-point", { n: m.match_length }) : t("Money");
       const games = m.games ? ` · ${plural(m.games.length, "game")}` : "";
       return `<tr>
         <td class="nowrap"><div class="cell-title tabular">${esc(shortDate(m.event_date || m.created_at))}</div><div class="cell-sub">${esc(m.event_time || "")}</div></td>
         <td><div class="cell-title">${length}${games}${m.games ? ` · ${scoreLine(m)}` : ""}</div><div class="cell-sub" title="${esc(m.source_path || m.filename)}">${source}${m.site ? ` · ${esc(m.site)}` : ""}</div></td>
         <td><div class="players">${playerLine(m, 1)}${playerLine(m, 2)}</div></td>
-        <td class="nowrap">${statusLabel(m)}${m.plies !== null && m.status === "done" ? `<div class="cell-sub">${m.plies}-ply · ${m.analysis_seconds}s</div>` : ""}${m.error ? `<div class="cell-sub" style="color:var(--vbad)">${esc(m.error)}</div>` : ""}</td>
+        <td class="nowrap">${statusLabel(m)}${m.plies !== null && m.status === "done" ? `<div class="cell-sub">${m.plies}-ply · ${t("{n} s", { n: m.analysis_seconds })}</div>` : ""}${m.error ? `<div class="cell-sub status error">${esc(I18n.server(m.error))}</div>` : ""}</td>
         <td><div class="row-actions">
-          ${m.status === "done" ? `<a class="btn sm" href="/review?match=${m.id}">Review</a><a class="btn sm secondary" href="/practice?match_id=${m.id}">Practise</a>` : ""}
-          <button class="btn sm ghost icon-only" data-reanalyze="${m.id}" title="Re-analyse" aria-label="Re-analyse" ${m.status === "analyzing" ? "disabled" : ""}>${icon("refresh")}</button>
-          <button class="btn sm ghost icon-only" data-delete="${m.id}" title="Delete" aria-label="Delete">${icon("trash")}</button>
+          ${m.status === "done" ? `<a class="btn sm" href="/review?match=${m.id}">${t("Review")}</a><a class="btn sm secondary" href="/practice?match_id=${m.id}">${t("Practise")}</a>` : ""}
+          <button class="btn sm ghost icon-only" data-reanalyze="${m.id}" title="${t("Re-analyse")}" aria-label="${t("Re-analyse")}" ${m.status === "analyzing" ? "disabled" : ""}>${icon("refresh")}</button>
+          <button class="btn sm ghost icon-only" data-delete="${m.id}" title="${t("Delete")}" aria-label="${t("Delete")}">${icon("trash")}</button>
         </div></td>
       </tr>`;
     }).join("")}</tbody></table>`;
@@ -62,12 +62,12 @@ function renderWatch(folders) {
   const card = $("watch-card");
   const active = folders.folders.filter((f) => f.enabled);
   if (!folders.available) {
-    card.innerHTML = `<span class="t">${icon("folder")}Folder watching is off</span><span class="d">Run ./install.sh update once to let the app read your match folders.</span>`;
+    card.innerHTML = `<span class="t">${icon("folder")}${t("Folder watching is off")}</span><span class="d">${t("Run ./install.sh update once to let the app read your match folders.")}</span>`;
   } else if (active.length) {
-    card.innerHTML = `<span class="t"><i class="dot" style="width:8px;height:8px;border-radius:50%;background:var(--good-strong)"></i>Watching ${plural(active.length, "folder")}</span>
-      <span class="d">${active.map((f) => esc(f.path.replace(/^\/Users\/[^/]+/, "~"))).join(", ")}</span><a class="small" href="/settings#folders">Manage folders</a>`;
+    card.innerHTML = `<span class="t">${icon("folder")}${t("Watching {folders}", { folders: plural(active.length, "folder") })}</span>
+      <span class="d">${active.map((f) => esc(f.path.replace(/^\/Users\/[^/]+/, "~"))).join(", ")}</span><a class="small" href="/settings#folders">${t("Manage folders")}</a>`;
   } else {
-    card.innerHTML = `<span class="t">${icon("folder")}Import automatically</span><span class="d">Watch your Downloads folder and new match files are imported and analysed on their own.</span><a class="small" href="/settings#folders">Choose a folder</a>`;
+    card.innerHTML = `<span class="t">${icon("folder")}${t("Import automatically")}</span><span class="d">${t("Watch your Downloads folder and new match files are imported and analysed on their own.")}</span><a class="small" href="/settings#folders">${t("Choose a folder")}</a>`;
   }
 }
 
@@ -75,7 +75,7 @@ async function refresh() {
   try {
     const [{ matches }, { settings }, folders] = await Promise.all([api.get("/api/matches"), api.get("/api/settings"), api.get("/api/folders")]);
     const t = settings.thresholds;
-    $("threshold-note").textContent = `Doubtful ≥ ${t.doubtful} · bad ≥ ${t.bad} · very bad ≥ ${t.very_bad}`;
+    $("threshold-note").textContent = window.t("Doubtful ≥ {a} · bad ≥ {b} · very bad ≥ {c}", { a: t.doubtful, b: t.bad, c: t.very_bad });
     renderMatches(matches);
     renderWatch(folders);
     clearTimeout(pollTimer);
@@ -94,8 +94,8 @@ async function uploadFiles(files) {
     const added = results.filter((r) => r.id && !r.duplicate).length;
     const duplicates = results.filter((r) => r.duplicate).length;
     const failed = results.filter((r) => r.error);
-    if (failed.length) toast(failed.map((r) => `${r.filename}: ${r.error}`).join(" · "), true);
-    else toast(`${plural(added, "match", "matches")} queued for analysis${duplicates ? `, ${duplicates} already imported` : ""}`);
+    if (failed.length) toast(failed.map((r) => `${r.filename}: ${I18n.server(r.error)}`).join(" · "), true);
+    else toast(duplicates ? t("{matches} queued for analysis, {n} already imported", { matches: plural(added, "match"), n: duplicates }) : t("{matches} queued for analysis", { matches: plural(added, "match") }));
   } catch (err) {
     toast(err.message, true);
   }
@@ -116,11 +116,11 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       if (re) {
         await api.post(`/api/matches/${re.dataset.reanalyze}/reanalyze`);
-        toast("Queued for analysis");
+        toast(t("Queued for analysis"));
         refresh();
-      } else if (del && confirm("Delete this match, its analysis and its practice history?")) {
+      } else if (del && await confirmDialog({ title: t("Delete this match?"), body: t("Its analysis and practice history are deleted too. This cannot be undone."), action: t("Delete match") })) {
         await api.del(`/api/matches/${del.dataset.delete}`);
-        toast("Match deleted");
+        toast(t("Match deleted"));
         refresh();
         Shell.refresh();
       }

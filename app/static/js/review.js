@@ -69,15 +69,15 @@ function minError(f) {
 function fillPlayerAndGame(f) {
   const match = state.matches.find((m) => String(m.id) === f.match);
   if (match) {
-    $("f-player").innerHTML = `<option value="">Both players</option><option value="1">${esc(match.player1)}</option><option value="2">${esc(match.player2)}</option>`;
-    $("f-game").innerHTML = `<option value="">All games</option>` + (match.games || []).map((g) =>
-      `<option value="${g.game_no}">Game ${g.game_no} (${g.score1}–${g.score2}${g.crawford ? ", Crawford" : ""})</option>`).join("");
+    $("f-player").innerHTML = `<option value="">${t("Both players")}</option><option value="1">${esc(match.player1)}</option><option value="2">${esc(match.player2)}</option>`;
+    $("f-game").innerHTML = `<option value="">${t("All games")}</option>` + (match.games || []).map((g) =>
+      `<option value="${g.game_no}">${t("Game {n}", { n: g.game_no })} (${g.score1}–${g.score2}${g.crawford ? `, ${t("Crawford")}` : ""})</option>`).join("");
     $("f-game").disabled = false;
     if (f.player.startsWith("name:")) f.player = f.player.slice(5) === match.player1 ? "1" : f.player.slice(5) === match.player2 ? "2" : "";
   } else {
     const names = [...new Set(state.matches.flatMap((m) => [m.player1, m.player2]).filter(Boolean))].sort();
-    $("f-player").innerHTML = `<option value="">Both players</option>` + names.map((n) => `<option value="name:${esc(n)}">${esc(n)}</option>`).join("");
-    $("f-game").innerHTML = `<option value="">All games</option>`;
+    $("f-player").innerHTML = `<option value="">${t("Both players")}</option>` + names.map((n) => `<option value="name:${esc(n)}">${esc(n)}</option>`).join("");
+    $("f-game").innerHTML = `<option value="">${t("All games")}</option>`;
     $("f-game").disabled = true;
   }
   if ([...$("f-player").options].some((o) => o.value === f.player)) $("f-player").value = f.player;
@@ -87,9 +87,9 @@ function fillPlayerAndGame(f) {
 function subtitle() {
   const f = currentFilters();
   const match = state.matches.find((m) => String(m.id) === f.match);
-  if (!match) return `${plural(state.matches.length, "match", "matches")} analysed`;
-  const len = match.match_length ? `${match.match_length}-point match` : "money session";
-  return `${match.player1} vs ${match.player2} · ${len} · ${shortDate(match.event_date || match.created_at)}`;
+  if (!match) return t("{matches} analysed", { matches: plural(state.matches.length, "match") });
+  const len = match.match_length ? t("{n}-point match", { n: match.match_length }) : t("money session");
+  return `${match.player1} ${t("vs")} ${match.player2} · ${len} · ${shortDate(match.event_date || match.created_at)}`;
 }
 
 async function loadDecisions() {
@@ -122,7 +122,7 @@ async function loadDecisions() {
 }
 
 function rowWhat(d) {
-  return d.kind === "take" ? `${esc(d.action)} (response)` : esc(d.action);
+  return d.kind === "take" ? t("{action} (response)", { action: esc(t(d.action)) }) : esc(t(d.action));
 }
 
 function rowWho(d) {
@@ -133,11 +133,11 @@ function renderRows() {
   const all = !$("f-match").value;
   $("rows").innerHTML = state.decisions.map((d) => `
     <div class="drow ${d.id === state.current ? "current" : ""}" data-id="${d.id}" role="button" tabindex="-1">
-      <input type="checkbox" data-select="${d.id}" ${state.selected.has(d.id) ? "checked" : ""} aria-label="Select for export">
-      <span class="where">${all ? `${esc(shortDate(d.event_date))}<br>` : ""}G${d.game_no} · ${d.move_no}</span>
-      <span class="what"><span class="mv">${rowWhat(d)}</span><span class="who" title="Best: ${esc(d.best)}">${rowWho(d)}</span></span>
-      <span class="err"><span class="v">${formatLoss(d.error)}</span><span class="sevtxt ${d.class || "ok"}">${d.class ? SEVERITY_LABEL[d.class] : "Good"}</span></span>
-    </div>`).join("") || `<div class="empty">${icon("check")}<strong>Nothing to review</strong><p>No decisions match these filters. Try "Every decision" or another match.</p></div>`;
+      <input type="checkbox" data-select="${d.id}" ${state.selected.has(d.id) ? "checked" : ""} aria-label="${t("Select for export")}">
+      <span class="where">${all ? `${esc(shortDate(d.event_date))}<br>` : ""}${t("G{game} · {move}", { game: d.game_no, move: d.move_no })}</span>
+      <span class="what"><span class="mv">${rowWhat(d)}</span><span class="who" title="${t("Best")}: ${esc(t(d.best))}">${rowWho(d)}</span></span>
+      <span class="err"><span class="v">${formatLoss(d.error)}</span><span class="sevtxt ${d.class || "ok"}">${d.class ? SEVERITY_LABEL[d.class] : t("Good")}</span></span>
+    </div>`).join("") || `<div class="empty">${icon("check")}<strong>${t("Nothing to review")}</strong><p>${t('No decisions match these filters. Try "Every decision" or another match.')}</p></div>`;
   $("result-count").textContent = plural(state.decisions.length, "decision");
   updateSelection();
 }
@@ -145,16 +145,16 @@ function renderRows() {
 function updateSelection() {
   const n = state.selected.size;
   $("export-btn").disabled = n === 0;
-  $("export-btn").innerHTML = `${icon("download")}${n ? `Export ${n} as .xgp` : "Export .xgp"}`;
+  $("export-btn").innerHTML = `${icon("download")}${n ? t("Export {n} as .xgp", { n }) : t("Export .xgp")}`;
   const all = state.decisions.length > 0 && state.decisions.every((d) => state.selected.has(d.id));
   $("select-all").checked = all;
   $("select-all").indeterminate = n > 0 && !all;
 }
 
 function cubeText(d) {
-  if (d.crawford_game) return "Crawford game";
-  if (d.cube_owner === 0) return d.cube_value > 1 ? `Cube ${d.cube_value} centred` : "Cube centred";
-  return `Cube ${d.cube_value} · ${esc(playerName(d, d.cube_owner))}`;
+  if (d.crawford_game) return t("Crawford game");
+  if (d.cube_owner === 0) return d.cube_value > 1 ? t("Cube {n} centred", { n: d.cube_value }) : t("Cube centred");
+  return `${t("Cube {n}", { n: d.cube_value })} · ${esc(playerName(d, d.cube_owner))}`;
 }
 
 function bestCandidate(d) {
@@ -163,22 +163,22 @@ function bestCandidate(d) {
 
 function renderBoardPanel(d) {
   const who = esc(playerName(d, d.player));
-  const title = d.kind === "checker" ? `${who} to play` : d.kind === "cube" ? `${who}: double or not?` : `${who}: take or pass?`;
+  const title = t(d.kind === "checker" ? "{name} to play" : d.kind === "cube" ? "{name}: double or not?" : "{name}: take or pass?", { name: who });
   const pills = d.kind === "checker" ? (() => {
     const best = bestCandidate(d);
     const played = d.candidates[d.played_index];
     const same = best === played;
     return `<div class="move-pills">
-      <button class="move-pill" data-arrow="played" aria-pressed="${state.arrows.has("played") && state.candidate === null}" style="--pill-color:var(--arrow-game)"><span class="dot"></span>${esc(played.move)} <span class="cost">${same ? "best" : formatLoss(d.error)}</span></button>
-      <button class="move-pill" data-arrow="best" aria-pressed="${state.arrows.has("best") && state.candidate === null}" style="--pill-color:var(--arrow-best)"><span class="dot"></span>${esc(best.move)} <span class="cost">best</span></button>
+      <button class="move-pill" data-arrow="played" aria-pressed="${state.arrows.has("played") && state.candidate === null}" style="--pill-color:var(--arrow-game)"><span class="dot"></span>${esc(played.move)} <span class="cost">${same ? t("best") : formatLoss(d.error)}</span></button>
+      <button class="move-pill" data-arrow="best" aria-pressed="${state.arrows.has("best") && state.candidate === null}" style="--pill-color:var(--arrow-best)"><span class="dot"></span>${esc(best.move)} <span class="cost">${t("best")}</span></button>
     </div>`;
   })() : "";
   $("board-panel").innerHTML = `
     <div class="position-title"><h2>${title}</h2>${d.kind === "checker" ? diceSvg(d.dice) : ""}${severityChip(d.class)}</div>
-    <p class="small muted" style="margin:6px 0 10px">${esc(d.player1)} vs ${esc(d.player2)} · game ${d.game_no}, move ${d.move_no} · ${d.match_length ? `${d.score1}–${d.score2} to ${d.match_length}` : "money"} · ${cubeText(d).toLowerCase()}</p>
+    <p class="small muted note-tight">${esc(d.player1)} ${t("vs")} ${esc(d.player2)} · ${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })} · ${d.match_length ? t("{a}–{b} to {n}", { a: d.score1, b: d.score2, n: d.match_length }) : t("money")} · ${cubeText(d)}</p>
     <div id="board"></div>
     ${pills}
-    <div class="xgid"><code title="XGID">${esc(d.xgid)}</code><button class="btn sm ghost" id="copy-xgid">${icon("copy")}Copy XGID</button></div>`;
+    <div class="xgid"><code title="XGID">${esc(d.xgid)}</code><button class="btn sm ghost" id="copy-xgid">${icon("copy")}${t("Copy XGID")}</button></div>`;
   drawBoard(d);
   $("board-panel").querySelectorAll("[data-arrow]").forEach((el) => el.addEventListener("click", () => {
     const k = el.dataset.arrow;
@@ -190,9 +190,9 @@ function renderBoardPanel(d) {
   $("copy-xgid").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(d.xgid);
-      toast("XGID copied. Paste it into eXtreme Gammon.");
+      toast(t("XGID copied. Paste it into eXtreme Gammon."));
     } catch (_) {
-      toast("Copy failed. Select the text and copy it by hand.", true);
+      toast(t("Copy failed. Select the text and copy it by hand."), true);
     }
   });
 }
@@ -217,39 +217,39 @@ function probsBlock(probs, who) {
   if (!probs) return "";
   const [win, wg, wbg, lg, lbg] = probs;
   const pct = (x) => `${(x * 100).toFixed(1)}%`;
-  return `<section><h3>Winning chances for ${esc(who)}</h3>
+  return `<section><h3>${t("Winning chances for {name}", { name: esc(who) })}</h3>
     <div class="probbar"><span class="w" style="width:${win * 100}%"></span></div>
-    <div class="prob-legend"><span>Win <strong>${pct(win)}</strong> · gammon ${pct(wg)} · bg ${pct(wbg)}</span><span>Lose <strong>${pct(1 - win)}</strong> · gammon ${pct(lg)}</span></div></section>`;
+    <div class="prob-legend"><span>${t("Win")} <strong>${pct(win)}</strong> · ${t("gammon")} ${pct(wg)} · ${t("bg")} ${pct(wbg)}</span><span>${t("Lose")} <strong>${pct(1 - win)}</strong> · ${t("gammon")} ${pct(lg)}</span></div></section>`;
 }
 
 function verdict(d) {
-  const sev = d.class ? SEVERITY_LABEL[d.class].toLowerCase() : null;
-  const text = d.error <= 0.0005 ? "This was the engine's choice." : `${sev ? `A ${sev} ${d.kind === "checker" ? "move" : "decision"}: ` : "Close: "}it cost ${d.error.toFixed(3)} equity, about ${(d.error * 50).toFixed(1)}% of a game's worth of winning chances.`;
-  return `<section><div class="verdict-line"><h3 style="margin:0">Equity lost</h3><span class="big ${d.class ? "trend-bad" : "trend-good"}">${formatLoss(d.error)}</span></div><p class="small muted" style="margin-top:6px">${text}</p></section>`;
+  const cost = t("It cost {error} equity, about {pct}% in winning chances.", { error: d.error.toFixed(3), pct: (d.error * 50).toFixed(1) });
+  const text = d.error <= 0.0005 ? t("This was the engine's choice.") : `${d.class ? severityPhrase(d) : t("Close")}. ${cost}`;
+  return `<section><div class="verdict-line"><h3>${term(t("Equity lost"), t("Equity is your expected result from a position. A mistake loses equity; 0.1 is roughly 5% in winning chances."))}</h3><span class="big ${d.class ? "trend-bad" : "trend-good"}">${formatLoss(d.error)}</span></div><p class="small muted note-tight">${text}</p></section>`;
 }
 
 function renderAnalysis(d) {
   let body = verdict(d);
   if (d.kind === "checker") {
     const best = bestCandidate(d);
-    body += `<section><h3>Candidate moves</h3><table class="cands"><thead><tr><th></th><th>Move</th><th class="num">Equity</th><th class="num">Diff</th></tr></thead><tbody>${
+    body += `<section><h3>${t("Candidate moves")}</h3><table class="cands"><thead><tr><th></th><th>${t("Move")}</th><th class="num">${t("Equity")}</th><th class="num">${t("Diff")}</th></tr></thead><tbody>${
       d.candidates.map((c, i) => `<tr data-cand="${i}" class="${state.candidate === i ? "selected" : ""}">
         <td class="rank">${i + 1}</td>
-        <td class="mv">${esc(c.move)}${c === best ? '<span class="tag best">best</span>' : ""}${i === d.played_index ? '<span class="tag game">played</span>' : ""}</td>
+        <td class="mv">${esc(c.move)}${c === best ? `<span class="tag best">${t("best")}</span>` : ""}${i === d.played_index ? `<span class="tag game">${t("played")}</span>` : ""}</td>
         <td class="num">${formatEquity(c.equity)}</td><td class="num diff">${c === best ? "" : (c.equity - best.equity).toFixed(3)}</td></tr>`).join("")
-    }</tbody></table><p class="small muted" style="margin-top:8px">Click a move to draw it on the board.</p></section>`;
+    }</tbody></table><p class="small muted muted-note">${t("Click a move to draw it on the board.")}</p></section>`;
     body += probsBlock((d.candidates[state.candidate ?? d.played_index] || {}).probs, playerName(d, d.on_roll));
-    if (d.forced) body += `<section><p class="small muted">Forced: only one legal play.</p></section>`;
+    if (d.forced) body += `<section><p class="small muted">${t("Forced: only one legal play.")}</p></section>`;
   } else {
     const c = d.cube;
     const optimal = Math.max(c.nd, Math.min(c.dt, c.dp));
     const chosen = (label) => (d.kind === "cube" && ((label === "No double" && d.action === "No double") || (label === "Double, take" && d.action === "Double")))
       || (d.kind === "take" && ((label === "Double, take" && d.action === "Take") || (label === "Double, pass" && d.action === "Pass")));
-    body += `<section><h3>Cube equities for ${esc(playerName(d, d.on_roll))}</h3><div class="cube-rows">${
+    body += `<section><h3>${t("Cube equities for {name}", { name: esc(playerName(d, d.on_roll)) })}</h3><div class="cube-rows">${
       [["No double", c.nd], ["Double, take", c.dt], ["Double, pass", c.dp]].map(([label, eq]) => `
-        <div class="cube-row ${eq === optimal ? "best" : ""}"><span>${label}${chosen(label) ? '<span class="tag game">played</span>' : ""}${eq === optimal ? '<span class="tag best">best</span>' : ""}</span>
+        <div class="cube-row ${eq === optimal ? "best" : ""}"><span>${t(label)}${chosen(label) ? `<span class="tag game">${t("played")}</span>` : ""}${eq === optimal ? `<span class="tag best">${t("best")}</span>` : ""}</span>
         <span class="eq">${formatEquity(eq)}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("")
-    }</div><p class="small" style="margin-top:12px">Right action: <strong>${esc(d.best)}</strong></p></section>`;
+    }</div><p class="small muted-note">${t("Right action")}: <strong>${esc(t(d.best))}</strong></p></section>`;
     body += probsBlock(c.probs, playerName(d, d.on_roll));
   }
   $("analysis").innerHTML = body;
@@ -270,7 +270,7 @@ async function showDetail(id) {
   state.current = id;
   document.querySelectorAll(".drow").forEach((r) => r.classList.toggle("current", Number(r.dataset.id) === id));
   if (!id) {
-    $("board-panel").innerHTML = `<div class="empty">${icon("review")}<strong>No decision selected</strong><p>Pick a decision on the left.</p></div>`;
+    $("board-panel").innerHTML = `<div class="empty">${icon("review")}<strong>${t("No decision selected")}</strong><p>${t("Pick a decision on the left.")}</p></div>`;
     $("analysis").innerHTML = "";
     return;
   }
@@ -282,7 +282,7 @@ async function exportSelected() {
   const ids = state.decisions.filter((d) => state.selected.has(d.id)).map((d) => d.id);
   const button = $("export-btn");
   button.disabled = true;
-  button.textContent = "Exporting…";
+  button.textContent = t("Exporting…");
   try {
     const response = await api.request("POST", "/api/export", { decision_ids: ids });
     const blob = await response.blob();
@@ -294,7 +294,7 @@ async function exportSelected() {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-    toast(`Exported ${plural(ids.length, "position")} for eXtreme Gammon`);
+    toast(t("Exported {positions} for eXtreme Gammon", { positions: plural(ids.length, "position") }));
   } catch (err) {
     toast(err.message, true);
   }
@@ -334,8 +334,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
   const f = startingFilters(state.me);
-  $("f-match").innerHTML = `<option value="">All matches</option>` + state.matches.map((m) =>
-    `<option value="${m.id}">${esc(shortDate(m.event_date || m.created_at))} · ${esc(m.player1)} vs ${esc(m.player2)}</option>`).join("");
+  $("f-match").innerHTML = `<option value="">${t("All matches")}</option>` + state.matches.map((m) =>
+    `<option value="${m.id}">${esc(shortDate(m.event_date || m.created_at))} · ${esc(m.player1)} ${t("vs")} ${esc(m.player2)}</option>`).join("");
   if ([...$("f-match").options].some((o) => o.value === f.match)) $("f-match").value = f.match;
   fillPlayerAndGame(f);
   $("f-kind").value = f.kind;
