@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # VS Gammon installer for macOS (Docker Desktop).
 #
-#   curl -fsSL https://raw.githubusercontent.com/ruolez/vs-gammon/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/ruolez/vs-gammon/refs/heads/main/install.sh | bash
 #   ~/vs-gammon/install.sh [install|update|start|stop|status|backup|restore FILE|shortcut|uninstall] [--yes]
 #
 # Installs into ~/vs-gammon (override with VSG_HOME), keeps matches and settings in ~/vs-gammon/data,
