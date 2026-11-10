@@ -1,0 +1,25 @@
+name: vs-gammon
+
+services:
+  app:
+    build: .
+    image: vs-gammon:latest
+    container_name: vs-gammon
+    ports:
+      - "${APP_PORT:-5563}:5563"
+    environment:
+      DATA_DIR: /srv/data
+      EXPORT_DIR: /srv/exports
+      TZ: ${TZ:-UTC}
+      HOST_HOME: ${HOST_HOME:-}
+      HOST_ROOT: /host
+    volumes:
+      - ./data:/srv/data
+      - ./exports:/srv/exports
+      - ${HOST_HOME:-./data/no-home}:/host:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5563/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

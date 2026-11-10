@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard · VS Gammon</title>
+  <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"")}catch(e){}</script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar" data-active="/"></aside>
+  <main class="main">
+    <header class="page-head">
+      <div>
+        <h1 id="greeting">Dashboard</h1>
+        <p class="sub" id="greeting-sub">Loading your games…</p>
+      </div>
+      <div class="actions">
+        <div class="field"><label for="player" class="sr-only">Player</label><select id="player"></select></div>
+        <a class="btn secondary" href="/matches"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>Import</a>
+        <a class="btn lg" id="cta" href="/practice">Start practice</a>
+      </div>
+    </header>
+    <div id="dash-empty" hidden></div>
+    <div class="dash" id="dash">
+      <section class="panel span-12 stat-strip" id="stats" aria-label="Summary"></section>
+      <section class="panel span-7">
+        <div class="panel-head"><h2 id="hero-title">Performance rating by match</h2><span class="hint" id="hero-hint">Lower is better</span></div>
+        <div id="chart"></div>
+      </section>
+      <section class="panel span-5">
+        <div class="panel-head"><h2>Where you lose equity</h2><span class="hint">Last 10 matches</span></div>
+        <div class="phase-list" id="phases"></div>
+      </section>
+      <section class="panel span-7">
+        <div class="panel-head"><h2>Biggest recent mistakes</h2><a class="hint" id="mistakes-all" href="/review">Review all</a></div>
+        <div id="mistakes"></div>
+      </section>
+      <div class="span-5 stack">
+        <section class="panel">
+          <div class="panel-head"><h2>Practice deck</h2><span class="hint">All time, your errors</span></div>
+          <div class="deck-rows" id="deck"></div>
+          <div class="deck-foot"><span class="streak cold" id="streak"></span><a class="btn sm" id="deck-cta" href="/practice">Practise now</a></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Recent matches</h2><a class="hint" href="/matches">All matches</a></div>
+          <div id="recent"></div>
+        </section>
+      </div>
+    </div>
+
+  </main>
+</div>
+<script src="/static/js/core.js"></script>
+<script src="/static/js/moves.js"></script>
+<script src="/static/js/board.js"></script>
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>

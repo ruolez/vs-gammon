@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review · VS Gammon</title>
+  <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"")}catch(e){}</script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar" data-active="/review"></aside>
+  <main class="main">
+    <header class="page-head">
+      <div>
+        <h1>Review</h1>
+        <p class="sub" id="review-sub">Every decision the engine found worth a look.</p>
+      </div>
+      <div class="actions">
+        <button class="btn secondary" id="practice-btn">Practise these</button>
+        <button class="btn" id="export-btn" disabled>Export .xgp</button>
+      </div>
+    </header>
+    <form class="toolbar" id="filters">
+      <div class="field"><label for="f-match">Match</label><select id="f-match"><option value="">All matches</option></select></div>
+      <div class="field"><label for="f-player">Player</label><select id="f-player"><option value="">Both players</option></select></div>
+      <div class="field"><label for="f-kind">Decisions</label><select id="f-kind"><option value="">Checker and cube</option><option value="checker">Checker plays</option><option value="cube">Cube decisions</option></select></div>
+      <div class="field"><label for="f-severity">Show</label><select id="f-severity"><option value="doubtful">Doubtful or worse</option><option value="bad">Bad or worse</option><option value="very_bad">Very bad only</option><option value="all">Every decision</option><option value="custom">Error at least…</option></select></div>
+      <div class="field" id="custom-field" hidden><label for="f-custom">Minimum loss</label><input type="number" id="f-custom" step="0.005" min="0" value="0.05" style="width:110px"></div>
+      <div class="field"><label for="f-game">Game</label><select id="f-game"><option value="">All games</option></select></div>
+      <label class="check"><input type="checkbox" id="f-forced"> Forced moves</label>
+    </form>
+    <div class="review">
+      <section class="panel list" aria-label="Decisions">
+        <div class="list-head">
+          <label class="check" style="min-height:0"><input type="checkbox" id="select-all"><span class="sr-only">Select all shown</span></label>
+          <span class="count-text" id="result-count"></span>
+          <span class="spacer"></span>
+          <span class="small muted" title="Arrow keys move, Space selects">↑ ↓ · Space</span>
+        </div>
+        <div class="list-body" id="rows"></div>
+      </section>
+      <section class="panel board-panel" id="board-panel" aria-live="polite"></section>
+      <section class="panel analysis analysis-col" id="analysis"></section>
+    </div>
+
+  </main>
+</div>
+<script src="/static/js/core.js"></script>
+<script src="/static/js/moves.js"></script>
+<script src="/static/js/board.js"></script>
+<script src="/static/js/review.js"></script>
+</body>
+</html>

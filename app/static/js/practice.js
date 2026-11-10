@@ -1,0 +1,517 @@
+const STORAGE_KEY = "gammon-practice";
+const MODE_TEXT = { due: "Missed first, then new", misses: "Only missed", new: "Only new", all: "Everything" };
+const SEVERITY_TEXT = { doubtful: "Errors", bad: "Bad or worse", very_bad: "Very bad only", all: "Every decision" };
+const KIND_TEXT = { "": "Checker and cube", checker: "Checker plays", cube: "Cube decisions" };
+
+const state = {
+  thresholds: null, matches: [], queue: [], index: 0,
+  session: { answered: 0, correct: 0, requeued: new Set() },
+  d: null, phase: "idle", start: null, frame: null, remaining: [], history: [], finals: null, selected: null,
+  result: null, arrows: new Set(["yours", "best"]), candidate: null,
+};
+
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (_) { return {}; }
+}
+
+function savePrefs() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      player: $("s-player").value, severity: $("s-severity").value, kind: $("s-kind").value,
+      mode: $("s-mode").value, match: $("s-match").value, shuffle: $("s-shuffle").checked,
+    }));
+  } catch (_) {}
+}
+
+function minError() {
+  const s = $("s-severity").value;
+  return s === "all" ? 0 : state.thresholds[s];
+}
+
+function queryString() {
+  const q = new URLSearchParams({ min_error: minError(), mode: $("s-mode").value });
+  if ($("s-player").value) q.set("player_name", $("s-player").value);
+  if ($("s-kind").value) q.set("kind", $("s-kind").value);
+  if ($("s-match").value) q.set("match_id", $("s-match").value);
+  return q;
+}
+
+function shuffle(items) {
+  const copy = items.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function renderSummary() {
+  const match = state.matches.find((m) => String(m.id) === $("s-match").value);
+  const chips = [
+    $("s-player").value || "Both players",
+    SEVERITY_TEXT[$("s-severity").value],
+    KIND_TEXT[$("s-kind").value],
+    MODE_TEXT[$("s-mode").value],
+    match ? `${match.player1} vs ${match.player2}, ${shortDate(match.event_date)}` : "All matches",
+  ];
+  if ($("s-shuffle").checked) chips.push("Shuffled");
+  $("summary").innerHTML = chips.map((c, i) => `<span class="chip">${i === 0 ? `<strong>${esc(c)}</strong>` : esc(c)}</span>`).join("");
+}
+
+function renderStats(stats) {
+  const accuracy = stats.attempts ? `${Math.round((100 * stats.correct) / stats.attempts)}%` : "–";
+  const items = [[stats.new, "new"], [stats.missed, "missed"], [stats.mastered, "solved"], [accuracy, `accuracy · ${plural(stats.attempts, "try", "tries")}`]];
+  $("stats").innerHTML = items.map(([n, l]) => `<div class="mini-stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+}
+
+function renderProgress() {
+  const total = state.queue.length;
+  const done = Math.min(state.session.answered, total);
+  $("progress").style.width = total ? `${(100 * done) / total}%` : "0%";
+  $("progressbar").setAttribute("aria-valuenow", String(done));
+  $("progressbar").setAttribute("aria-valuemax", String(total));
+  $("progress-text").textContent = `${done} / ${total} this session`;
+}
+
+async function startSession() {
+  savePrefs();
+  renderSummary();
+  try {
+    const { items, stats } = await api.get(`/api/practice/queue?${queryString()}`);
+    renderStats(stats);
+    const ids = items.map((i) => i.id);
+    state.queue = $("s-shuffle").checked ? shuffle(ids) : ids;
+    state.index = 0;
+    state.session = { answered: 0, correct: 0, requeued: new Set() };
+    renderProgress();
+    if (!state.queue.length) return showEmpty();
+    await showPosition();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function clearStage(prompt) {
+  $("prompt").textContent = prompt;
+  $("facts").innerHTML = "";
+  $("bar").innerHTML = "";
+  $("bar").className = "answer-bar";
+  $("bar").hidden = true;
+}
+
+function showEmpty() {
+  state.phase = "idle";
+  clearStage("Nothing due here");
+  $("board").innerHTML = `<div class="empty" style="padding:80px 24px">${icon("check")}<strong>You are all caught up</strong><p>No positions match these options. Choose "Everything" to revisit solved ones, lower the error level, or import another match.</p><button class="btn secondary" id="open-options">Change options</button></div>`;
+  $("open-options").addEventListener("click", () => toggleOptions(true));
+  $("panel").innerHTML = `<h2>How practice works</h2><div class="tips"><div>Every error you make in an analysed match becomes a practice position.</div><div>Answer correctly and it counts as solved. Miss it and it comes back first next time.</div></div>`;
+}
+
+function showDone() {
+  state.phase = "done";
+  const { answered, correct } = state.session;
+  const pct = answered ? Math.round((100 * correct) / answered) : 0;
+  clearStage("Session complete");
+  $("board").innerHTML = `<div class="session-done">
+    <div class="score">${correct}<small> / ${answered}</small></div>
+    <h2>${pct >= 80 ? "Strong session" : pct >= 50 ? "Good work" : "Keep at it"}</h2>
+    <p class="muted">${pct}% right. Missed positions stay due until you solve them.</p>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="btn lg" id="again">${icon("refresh")}Practise again</button><a class="btn lg secondary" href="/">Back to dashboard</a></div></div>`;
+  $("panel").innerHTML = `<h2>Next steps</h2><div class="tips"><div>Look at the positions you missed in Review, with every candidate move.</div><div>Import new matches and their errors join your practice list.</div></div>`;
+  $("again").addEventListener("click", startSession);
+  api.get(`/api/practice/stats?${queryString()}`).then(({ stats }) => renderStats(stats)).catch(() => {});
+  Shell.refresh();
+}
+
+function cubeText(d) {
+  if (d.crawford_game) return "Crawford game, no cube";
+  if (d.cube_owner === 0) return d.cube_value > 1 ? `Cube ${d.cube_value}, centred` : "Cube centred";
+  return `Cube ${d.cube_value}, owned by ${esc(playerName(d, d.cube_owner))}`;
+}
+
+function scoreText(d) {
+  if (!d.match_length) return "Money game";
+  return `${d.score1}–${d.score2} to ${d.match_length} (${d.match_length - d.score1}-away, ${d.match_length - d.score2}-away)`;
+}
+
+function renderContext() {
+  const d = state.d;
+  const who = esc(playerName(d, d.player));
+  $("prompt").innerHTML = d.kind === "checker"
+    ? `<span>${who} to play</span>${diceSvg(d.dice)}`
+    : d.kind === "cube" ? `<span>${who}: double or no double?</span>`
+      : `<span>${esc(playerName(d, d.on_roll))} doubles to ${d.cube_value * 2}. ${who}: take or pass?</span>`;
+  $("facts").innerHTML = [
+    `<span class="chip"><strong>${esc(d.player1)}</strong>vs<strong>${esc(d.player2)}</strong>${esc(shortDate(d.event_date))}</span>`,
+    `<span class="chip">Game ${d.game_no} · move ${d.move_no}</span>`,
+    `<span class="chip">${scoreText(d)}</span>`,
+    `<span class="chip">${cubeText(d)}</span>`,
+  ].join("");
+}
+
+async function showPosition() {
+  const id = state.queue[state.index];
+  const { decision } = await api.get(`/api/decisions/${id}`);
+  Object.assign(state, { d: decision, phase: "answer", result: null, candidate: null, selected: null, history: [] });
+  $("bar").hidden = false;
+  renderContext();
+  if (decision.kind === "checker") {
+    if (!decision.legal) {
+      $("board").innerHTML = `<div class="empty">${icon("alert")}<strong>Move list missing</strong><p>This position was analysed before practice existed. Re-analyse its match on the Matches page.</p></div>`;
+      return;
+    }
+    state.start = Board.onrollFrame(decision);
+    state.frame = state.start;
+    state.remaining = Moves.diceList(decision.dice);
+    state.finals = Moves.finalPositions(state.start, decision.legal);
+  }
+  renderAnswerPhase();
+}
+
+const options = () => Moves.nextSteps(state.frame, state.remaining, state.finals);
+const moveComplete = () => state.finals.has(Moves.frameKey(state.frame)) && options().length === 0;
+
+function diceState() {
+  const left = state.remaining.slice();
+  return Moves.diceList(state.d.dice).map((value) => {
+    const i = left.indexOf(value);
+    if (i >= 0) {
+      left.splice(i, 1);
+      return { value, used: false };
+    }
+    return { value, used: true };
+  });
+}
+
+function renderAnswerPhase() {
+  const d = state.d;
+  const bar = $("bar");
+  bar.className = "answer-bar";
+  if (d.kind === "checker") {
+    const opts = options();
+    const selectable = new Set(opts.map((o) => o.from));
+    const targets = new Set(state.selected === null ? [] : opts.filter((o) => o.from === state.selected).map((o) => o.to));
+    Board.renderWithLabels($("board"), d, { frame: state.frame, dice: diceState(), interactive: { selectable, targets, selected: state.selected } });
+    const complete = moveComplete();
+    bar.innerHTML = `
+      <button class="btn secondary" id="undo" ${state.history.length ? "" : "disabled"}>${icon("undo")}Undo <span class="kbd">⌫</span></button>
+      <button class="btn ghost" id="reset" ${state.history.length ? "" : "disabled"}>Reset</button>
+      <span class="hint">${complete ? "Move complete. Check it, or undo to change it." : state.selected !== null ? "Click a green point to move there." : "Click a checker to move it."}</span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="reveal">${icon("eye")}Show answer</button>
+      <button class="btn lg" id="submit" ${complete ? "" : "disabled"}>Check <span class="kbd">↵</span></button>`;
+    $("undo").addEventListener("click", undo);
+    $("reset").addEventListener("click", reset);
+    $("submit").addEventListener("click", submitChecker);
+  } else {
+    const take = d.kind === "take";
+    Board.renderWithLabels($("board"), d, { bottom: d.player, cubeOffered: take });
+    const [a, b] = take ? [["take", "Take", "T"], ["pass", "Pass", "P"]] : [["no_double", "No double", "N"], ["double", "Double", "D"]];
+    bar.innerHTML = `
+      <button class="btn lg secondary" data-action="${a[0]}">${a[1]} <span class="kbd">${a[2]}</span></button>
+      <button class="btn lg secondary" data-action="${b[0]}">${b[1]} <span class="kbd">${b[2]}</span></button>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="reveal">${icon("eye")}Show answer</button>`;
+    bar.querySelectorAll("[data-action]").forEach((el) => el.addEventListener("click", () => submitCube(el.dataset.action)));
+  }
+  $("reveal").addEventListener("click", reveal);
+  renderAnswerPanel();
+}
+
+function renderAnswerPanel() {
+  const d = state.d;
+  const past = d.practice && d.practice.length
+    ? `You have seen this position ${plural(d.practice.length, "time")}; last time you ${d.practice[0].revealed ? "looked at the answer" : d.practice[0].correct ? "got it right" : "missed it"}.`
+    : "First time you see this position.";
+  const tips = d.kind === "checker"
+    ? `<div><span class="kbd plain">1</span>Click a checker. With one place to go it moves straight away.</div>
+       <div><span class="kbd plain">2</span>With two places to go they light up green: click one.</div>
+       <div><span class="kbd plain">⌫</span>Undo a step. Esc resets, Enter checks your move.</div>`
+    : `<div>Decide from ${esc(playerName(d, d.player))}'s side, at the bottom of the board.</div>
+       <div>Keys: ${d.kind === "take" ? '<span class="kbd plain">T</span> take, <span class="kbd plain">P</span> pass' : '<span class="kbd plain">N</span> no double, <span class="kbd plain">D</span> double'}.</div>`;
+  $("panel").innerHTML = `<h2>Your turn</h2><div class="tips">${tips}</div><p class="small muted" style="margin-top:14px">${past}</p>`;
+}
+
+function applyOption(option) {
+  state.history.push({ frame: state.frame, remaining: state.remaining });
+  state.frame = Moves.applyStep(state.frame, [option.from, option.to]);
+  const i = state.remaining.indexOf(option.die);
+  state.remaining = state.remaining.slice(0, i).concat(state.remaining.slice(i + 1));
+  state.selected = null;
+  renderAnswerPhase();
+}
+
+const smallestDie = (choices) => choices.reduce((a, b) => (b.die < a.die ? b : a));
+
+function onBoardClick(ev) {
+  if (state.phase !== "answer" || !state.d || state.d.kind !== "checker") return;
+  const hit = ev.target.closest("[data-point]");
+  if (!hit) return;
+  const point = Number(hit.dataset.point);
+  const opts = options();
+  if (state.selected !== null) {
+    const choices = opts.filter((o) => o.from === state.selected && o.to === point);
+    if (choices.length) return applyOption(smallestDie(choices));
+  }
+  const fromHere = opts.filter((o) => o.from === point);
+  if (fromHere.length) {
+    if (new Set(fromHere.map((o) => o.to)).size === 1) return applyOption(smallestDie(fromHere));
+    state.selected = point;
+    return renderAnswerPhase();
+  }
+  const landing = opts.filter((o) => o.to === point);
+  if (landing.length && new Set(landing.map((o) => o.from)).size === 1) return applyOption(smallestDie(landing));
+  state.selected = null;
+  renderAnswerPhase();
+}
+
+function undo() {
+  const last = state.history.pop();
+  if (!last) return;
+  Object.assign(state, { frame: last.frame, remaining: last.remaining, selected: null });
+  renderAnswerPhase();
+}
+
+function reset() {
+  if (!state.history.length) return;
+  Object.assign(state, { frame: state.history[0].frame, remaining: state.history[0].remaining, history: [], selected: null });
+  renderAnswerPhase();
+}
+
+async function submitChecker() {
+  if (!moveComplete()) return;
+  const index = state.finals.get(Moves.frameKey(state.frame));
+  await sendAnswer({ legal_index: index }, state.d.legal[index].steps);
+}
+
+async function sendAnswer(body, yourSteps) {
+  try {
+    const result = await api.post(`/api/practice/${state.d.id}/answer`, body);
+    state.result = { ...result, yourSteps, revealed: false };
+    state.d.practice = result.history;
+    state.session.answered += 1;
+    if (result.correct) state.session.correct += 1;
+    else requeue();
+    renderResult();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+const submitCube = (action) => sendAnswer({ action }, null);
+
+async function reveal() {
+  try {
+    const { history } = await api.post(`/api/practice/${state.d.id}/reveal`);
+    state.d.practice = history;
+    state.result = { revealed: true, correct: false };
+    state.session.answered += 1;
+    requeue();
+    renderResult();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function requeue() {
+  const id = state.d.id;
+  if (!state.session.requeued.has(id)) {
+    state.session.requeued.add(id);
+    state.queue.push(id);
+  }
+}
+
+const bestCandidate = (d) => d.candidates.reduce((b, c) => (c.equity > b.equity ? c : b), d.candidates[0]);
+const sameSteps = (a, b) => Moves.frameKey(a.reduce(Moves.applyStep, state.start)) === Moves.frameKey(b.reduce(Moves.applyStep, state.start));
+
+function feedbackHtml() {
+  const r = state.result;
+  const d = state.d;
+  const best = d.kind === "checker" ? bestCandidate(d).move : d.best;
+  if (r.revealed) {
+    return `<div class="feedback"><span class="mark">${icon("eye")}</span><div><h3>Answer shown</h3><p>Best: <strong>${esc(best)}</strong>. This one comes back later.</p></div></div>`;
+  }
+  if (r.correct) {
+    const text = r.error <= 0.0005 ? "That is the engine's top choice." : `Only <strong>${r.error.toFixed(3)}</strong> behind the best, ${esc(best)}.`;
+    return `<div class="feedback"><span class="mark">${icon("check")}</span><div><h3>${r.error <= 0.0005 ? "Correct, best move!" : "Correct"}</h3><p>${text}</p></div></div>`;
+  }
+  const label = r.class ? `${SEVERITY_LABEL[r.class]} ${d.kind === "checker" ? "move" : "decision"}` : "Not quite";
+  const approx = r.approx ? " (rough estimate)" : "";
+  return `<div class="feedback"><span class="mark">${icon("x")}</span><div><h3>${label}</h3><p>You lost <strong>${r.error.toFixed(3)}</strong>${approx}. Best: <strong>${esc(best)}</strong></p></div></div>`;
+}
+
+function answerLine(kind, label, text, cost) {
+  return `<div class="answer-line"><span class="line" style="background:${Board.COLORS[kind]}"></span><span class="lbl">${label}</span><span class="mv">${esc(text)}</span><span class="cost">${cost}</span></div>`;
+}
+
+function checkerAnalysis() {
+  const d = state.d;
+  const r = state.result;
+  const best = bestCandidate(d);
+  const played = d.candidates[d.played_index];
+  let lines = "";
+  if (!r.revealed) lines += answerLine("yours", "You", r.answer, r.error <= 0.0005 ? "best" : `−${r.error.toFixed(3)}`);
+  lines += answerLine("best", "Best", best.move, "");
+  lines += answerLine("played", "In the game", played.move, d.error > 0.0005 ? `−${d.error.toFixed(3)}` : "best");
+  const toggles = [["yours", "You"], ["best", "Best"], ["played", "Game"]].filter(([k]) => k !== "yours" || !r.revealed)
+    .map(([k, label]) => `<button type="button" class="move-pill" data-arrow="${k}" aria-pressed="${state.arrows.has(k) && state.candidate === null}" style="--pill-color:${Board.COLORS[k]};min-height:32px"><span class="dot"></span>${label}</button>`).join("");
+  const rows = d.candidates.map((c, i) => {
+    const tags = [];
+    if (c === best) tags.push('<span class="tag best">best</span>');
+    if (!r.revealed && sameSteps(c.steps, r.yourSteps)) tags.push('<span class="tag you">you</span>');
+    if (i === d.played_index) tags.push('<span class="tag game">game</span>');
+    return `<tr data-cand="${i}" class="${state.candidate === i ? "selected" : ""}"><td class="rank">${i + 1}</td><td class="mv">${esc(c.move)}${tags.join("")}</td><td class="num diff">${c === best ? formatEquity(c.equity) : (c.equity - best.equity).toFixed(3)}</td></tr>`;
+  }).join("");
+  return `<h2>Analysis</h2><div class="answer-lines">${lines}</div>
+    <div class="move-pills" style="grid-template-columns:repeat(${r.revealed ? 2 : 3},1fr);margin:0 0 14px">${toggles}</div>
+    <table class="cands"><thead><tr><th></th><th>Candidates (click to draw)</th><th class="num">Equity</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function cubeAnalysis() {
+  const d = state.d;
+  const r = state.result;
+  const c = d.cube;
+  const optimal = Math.max(c.nd, Math.min(c.dt, c.dp));
+  const rows = [["No double", c.nd], ["Double, take", c.dt], ["Double, pass", c.dp]].map(([label, eq]) =>
+    `<div class="cube-row ${eq === optimal ? "best" : ""}"><span>${label}${eq === optimal ? '<span class="tag best">best</span>' : ""}</span><span class="eq">${formatEquity(eq)}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("");
+  const win = c.probs ? `<p class="small muted" style="margin-top:12px">${esc(playerName(d, d.on_roll))} wins ${(c.probs[0] * 100).toFixed(1)}% (gammons ${(c.probs[1] * 100).toFixed(1)}%).</p>` : "";
+  return `<h2>Analysis</h2><div class="answer-lines">
+      ${r.revealed ? "" : answerLine("yours", "You", r.answer, r.error <= 0.0005 ? "best" : `−${r.error.toFixed(3)}`)}
+      ${answerLine("best", "Right action", d.best, "")}
+      ${answerLine("played", "In the game", d.action, d.error > 0.0005 ? `−${d.error.toFixed(3)}` : "best")}
+    </div><div class="small muted" style="margin-bottom:8px">Equity for ${esc(playerName(d, d.on_roll))}, the doubler</div><div class="cube-rows">${rows}</div>${win}`;
+}
+
+function drawResultBoard() {
+  const d = state.d;
+  if (d.kind !== "checker") {
+    Board.renderWithLabels($("board"), d, { bottom: d.player, cubeOffered: d.kind === "take" });
+    return;
+  }
+  const r = state.result;
+  const best = bestCandidate(d);
+  const arrows = [];
+  if (state.candidate !== null) arrows.push({ kind: "candidate", steps: d.candidates[state.candidate].steps });
+  else {
+    if (state.arrows.has("played")) arrows.push({ kind: "played", steps: d.candidates[d.played_index].steps });
+    if (state.arrows.has("best")) arrows.push({ kind: "best", steps: best.steps });
+    const yoursIsBest = !r.revealed && sameSteps(r.yourSteps, best.steps);
+    if (state.arrows.has("yours") && !r.revealed && !(yoursIsBest && state.arrows.has("best"))) arrows.push({ kind: "yours", steps: r.yourSteps });
+  }
+  Board.renderWithLabels($("board"), d, { frame: state.start, arrows, arrowStart: state.start });
+}
+
+function renderResult() {
+  state.phase = "result";
+  const d = state.d;
+  const r = state.result;
+  drawResultBoard();
+  renderProgress();
+  const last = state.index + 1 >= state.queue.length;
+  const tone = r.revealed ? "shown" : r.correct ? "right" : "wrong";
+  const bar = $("bar");
+  bar.className = `answer-bar ${tone}`;
+  bar.innerHTML = `${feedbackHtml()}<span class="spacer"></span>
+    ${d.kind === "checker" && !r.correct ? `<button class="btn ghost" id="retry">${icon("reset")}Try again</button>` : ""}
+    <a class="btn ghost" href="/review?match=${d.match_id}&focus=${d.id}&min_error=all">Open in Review</a>
+    <button class="btn lg ${tone === "right" ? "go" : tone === "wrong" ? "stop" : ""}" id="next">${last ? "Finish" : "Continue"} <span class="kbd">↵</span></button>`;
+  if ($("retry")) $("retry").addEventListener("click", retry);
+  $("next").addEventListener("click", next);
+  $("panel").innerHTML = d.kind === "checker" ? checkerAnalysis() : cubeAnalysis();
+  $("panel").querySelectorAll("[data-arrow]").forEach((el) => el.addEventListener("click", () => {
+    const k = el.dataset.arrow;
+    if (state.candidate !== null) state.candidate = null;
+    else state.arrows.has(k) ? state.arrows.delete(k) : state.arrows.add(k);
+    renderResult();
+  }));
+  $("panel").querySelectorAll("[data-cand]").forEach((el) => el.addEventListener("click", () => {
+    const i = Number(el.dataset.cand);
+    state.candidate = state.candidate === i ? null : i;
+    renderResult();
+  }));
+}
+
+function retry() {
+  Object.assign(state, { phase: "answer", frame: state.start, remaining: Moves.diceList(state.d.dice), history: [], selected: null, result: null });
+  renderAnswerPhase();
+}
+
+async function next() {
+  if (state.index + 1 >= state.queue.length) return showDone();
+  state.index += 1;
+  try {
+    await showPosition();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function toggleOptions(open) {
+  const panel = $("options");
+  const show = open === undefined ? panel.hidden : open;
+  panel.hidden = !show;
+  $("options-btn").setAttribute("aria-expanded", String(show));
+}
+
+function onKey(ev) {
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+  const key = ev.key.toLowerCase();
+  if (state.phase === "result" && key === "enter") {
+    ev.preventDefault();
+    next();
+  } else if (state.phase === "answer" && state.d) {
+    if (state.d.kind === "checker") {
+      if (key === "enter") { ev.preventDefault(); submitChecker(); }
+      if (key === "backspace") { ev.preventDefault(); undo(); }
+      if (key === "escape") reset();
+    } else {
+      const map = state.d.kind === "take" ? { t: "take", p: "pass" } : { n: "no_double", d: "double" };
+      if (map[key]) submitCube(map[key]);
+    }
+  }
+}
+
+async function loadStreak(player) {
+  try {
+    const d = await api.get(`/api/dashboard${player ? `?player_name=${encodeURIComponent(player)}` : ""}`);
+    const days = d.practice ? d.practice.streak : 0;
+    const el = $("streak");
+    el.className = `streak ${days ? "" : "cold"}`;
+    el.innerHTML = `${icon("flame")}${plural(days, "day")} streak`;
+  } catch (_) {}
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  try {
+    const [{ settings }, { players }, { matches }] = await Promise.all([api.get("/api/settings"), api.get("/api/players"), api.get("/api/matches")]);
+    state.thresholds = settings.thresholds;
+    state.matches = matches.filter((m) => m.status === "done");
+    const prefs = loadPrefs();
+    $("s-player").innerHTML = `<option value="">Both players</option>` + players.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join("");
+    $("s-player").value = prefs.player !== undefined ? prefs.player : (settings.me || (players[0] ? players[0].name : ""));
+    $("s-match").innerHTML = `<option value="">All matches</option>` + state.matches.map((m) =>
+      `<option value="${m.id}">${esc(shortDate(m.event_date))} · ${esc(m.player1)} vs ${esc(m.player2)}</option>`).join("");
+    ["severity", "kind", "mode", "match"].forEach((k) => {
+      const el = $(`s-${k}`);
+      if (prefs[k] !== undefined && [...el.options].some((o) => o.value === prefs[k])) el.value = prefs[k];
+    });
+    $("s-shuffle").checked = !!prefs.shuffle;
+    const params = new URLSearchParams(location.search);
+    if (params.get("player_name")) $("s-player").value = params.get("player_name");
+    if (params.get("match_id")) $("s-match").value = params.get("match_id");
+    if (params.get("kind")) $("s-kind").value = params.get("kind");
+    if (params.get("severity")) $("s-severity").value = params.get("severity");
+    if ([...params.keys()].length) history.replaceState(null, "", "/practice");
+  } catch (err) {
+    toast(err.message, true);
+    return;
+  }
+  ["s-player", "s-severity", "s-kind", "s-mode", "s-match", "s-shuffle"].forEach((id) => $(id).addEventListener("change", startSession));
+  $("s-player").addEventListener("change", () => loadStreak($("s-player").value));
+  $("options").addEventListener("submit", (ev) => ev.preventDefault());
+  $("options-btn").addEventListener("click", () => toggleOptions());
+  $("board").addEventListener("click", onBoardClick);
+  document.addEventListener("keydown", onKey);
+  loadStreak($("s-player").value);
+  startSession();
+});

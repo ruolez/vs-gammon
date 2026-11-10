@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Practice · VS Gammon</title>
+  <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"")}catch(e){}</script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar" data-active="/practice"></aside>
+  <main class="main">
+    <header class="page-head">
+      <div>
+        <h1>Practice</h1>
+        <p class="sub">Positions from your own games. Each one comes back until you get it right.</p>
+      </div>
+      <div class="actions">
+        <span class="streak cold" id="streak" title="Days in a row with practice"></span>
+        <button class="btn secondary" id="options-btn" aria-expanded="false" aria-controls="options">Session options</button>
+      </div>
+    </header>
+    <form class="panel options-panel" id="options" hidden>
+      <div class="field"><label for="s-player">Player</label><select id="s-player"></select></div>
+      <div class="field"><label for="s-severity">Positions</label><select id="s-severity"><option value="doubtful">My errors (doubtful or worse)</option><option value="bad">Bad or worse</option><option value="very_bad">Very bad only</option><option value="all">Every decision</option></select></div>
+      <div class="field"><label for="s-kind">Type</label><select id="s-kind"><option value="">Checker and cube</option><option value="checker">Checker plays</option><option value="cube">Cube decisions</option></select></div>
+      <div class="field"><label for="s-mode">Which</label><select id="s-mode"><option value="due">Due: missed first, then new</option><option value="misses">Only ones I missed</option><option value="new">Only new ones</option><option value="all">Everything, solved included</option></select></div>
+      <div class="field"><label for="s-match">Match</label><select id="s-match"><option value="">All matches</option></select></div>
+      <label class="check"><input type="checkbox" id="s-shuffle"> Shuffle</label>
+    </form>
+    <div class="session-bar">
+      <div class="session-summary" id="summary"></div>
+      <div class="progress" role="progressbar" aria-label="Session progress" id="progressbar"><span id="progress" style="width:0%"></span></div>
+      <span class="count-text" id="progress-text">0 / 0</span>
+    </div>
+    <div class="practice-shell">
+      <section class="panel stage" id="stage">
+        <div class="prompt" id="prompt">Loading…</div>
+        <div class="position-meta" id="facts"></div>
+        <div class="stage-board" id="board"></div>
+        <div class="answer-bar" id="bar"></div>
+      </section>
+      <aside class="side">
+        <section class="panel panel-pad" id="panel"></section>
+        <section class="panel panel-pad"><h2>Your progress</h2><p class="scope" id="stats-scope">All time, for the positions these options select</p><div class="mini-stats" id="stats"></div></section>
+      </aside>
+    </div>
+
+  </main>
+</div>
+<script src="/static/js/core.js"></script>
+<script src="/static/js/moves.js"></script>
+<script src="/static/js/board.js"></script>
+<script src="/static/js/practice.js"></script>
+</body>
+</html>

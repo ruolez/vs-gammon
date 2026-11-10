@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>History · VS Gammon</title>
+  <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"")}catch(e){}</script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar" data-active="/history"></aside>
+  <main class="main">
+    <header class="page-head">
+      <div>
+        <h1>History</h1>
+        <p class="sub">Everything the app did with your matches, newest first.</p>
+      </div>
+      <div class="actions">
+        <div class="field"><label for="h-kind" class="sr-only">Show</label>
+          <select id="h-kind">
+            <option value="">All events</option>
+            <option value="imported">Imports</option>
+            <option value="analysed">Analyses</option>
+            <option value="analysis_failed">Failed analyses</option>
+            <option value="import_failed">Failed imports</option>
+            <option value="duplicate">Skipped duplicates</option>
+            <option value="reanalysis">Re-analysis requests</option>
+            <option value="exported">Exports</option>
+            <option value="deleted">Deletions</option>
+            <option value="folder_added">Folders added</option>
+            <option value="folder_removed">Folders removed</option>
+          </select>
+        </div>
+      </div>
+    </header>
+    <section class="panel" id="timeline"></section>
+    <p style="text-align:center;margin-top:16px"><button class="btn secondary" id="more" hidden>Load older events</button></p>
+
+  </main>
+</div>
+<script src="/static/js/core.js"></script>
+<script src="/static/js/history.js"></script>
+</body>
+</html>

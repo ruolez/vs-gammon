@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Matches · VS Gammon</title>
+  <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"")}catch(e){}</script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar" id="sidebar" data-active="/matches"></aside>
+  <main class="main">
+    <header class="page-head">
+      <div>
+        <h1>Matches</h1>
+        <p class="sub" id="matches-sub">Every match you import is analysed move by move.</p>
+      </div>
+    </header>
+    <div class="import-row">
+      <label class="dropzone" id="dropzone">
+        <input type="file" id="file-input" accept=".mat,.txt" multiple hidden>
+        <span class="icon-tile"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg></span>
+        <span><strong>Drop .mat files here, or click to choose</strong>Jellyfish match files from BackgammonGalaxy and other sites</span>
+      </label>
+      <div class="panel watch-card" id="watch-card"></div>
+    </div>
+    <section class="panel">
+      <div class="panel-head"><h2>Imported matches</h2><span class="hint" id="threshold-note"></span></div>
+      <div id="matches"><div class="empty"><p>Loading…</p></div></div>
+    </section>
+
+  </main>
+</div>
+<script src="/static/js/core.js"></script>
+<script src="/static/js/matches.js"></script>
+</body>
+</html>

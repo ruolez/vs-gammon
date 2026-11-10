@@ -1,0 +1,561 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-10T20:38:43+00:00",
+  "title": "Design System: VS Gammon",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Galaxy Action Blue",
+        "canonical": "oklch(57.3% 0.199 261.8)",
+        "tonalRamp": [
+          "#000233",
+          "#001c61",
+          "#0a3993",
+          "#1e58c8",
+          "#407cef",
+          "#6da3ff",
+          "#9bc9ff",
+          "#cbefff"
+        ],
+        "light": "#2563eb",
+        "note": "Only action colour; accent-hover / accent-text / accent-soft derive from it."
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Navy Ink",
+        "canonical": "oklch(20.8% 0.040 265.8)",
+        "tonalRamp": [
+          "#070b13",
+          "#1f2532",
+          "#3a4253",
+          "#576177",
+          "#788299",
+          "#9ca5b9",
+          "#c1c9da",
+          "#e8effc"
+        ],
+        "light": "#f4f6fa",
+        "note": "Page and sidebar background; light theme is Cool Paper."
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Slate Panel",
+        "canonical": "oklch(24.2% 0.045 264.7)",
+        "tonalRamp": [
+          "#070b14",
+          "#1e2533",
+          "#394255",
+          "#566179",
+          "#76829c",
+          "#9aa5bc",
+          "#c0c9dc",
+          "#e7effe"
+        ],
+        "light": "#ffffff",
+        "note": "Panels; steps up through surface-raised, surface-hover, surface-overlay."
+      },
+      "inset": {
+        "role": "neutral",
+        "displayName": "Well",
+        "canonical": "oklch(19.5% 0.040 265.6)",
+        "tonalRamp": [
+          "#070b14",
+          "#1f2532",
+          "#3a4253",
+          "#576177",
+          "#78829a",
+          "#9ca5ba",
+          "#c1c9db",
+          "#e8effc"
+        ],
+        "light": "#eef1f6",
+        "note": "Recessed fields, tracks, chips, move pills."
+      },
+      "text": {
+        "role": "neutral",
+        "displayName": "Mist",
+        "canonical": "oklch(94.2% 0.013 262.4)",
+        "tonalRamp": [
+          "#0a0b0e",
+          "#232529",
+          "#3f4248",
+          "#5d6168",
+          "#7e828a",
+          "#a1a5ac",
+          "#c6c9cf",
+          "#eceef3"
+        ],
+        "light": "#0f172a",
+        "note": "Primary text; text-2..text-4 step down."
+      },
+      "board-felt": {
+        "role": "secondary",
+        "displayName": "Board Felt Blue",
+        "canonical": "oklch(66.1% 0.125 266.5)",
+        "tonalRamp": [
+          "#020824",
+          "#13224b",
+          "#2a3e76",
+          "#435da3",
+          "#627fc8",
+          "#89a3e3",
+          "#b1c8fe",
+          "#dceeff"
+        ],
+        "light": "#7896e3",
+        "note": "Board halves; point-a / point-b alternate on it."
+      },
+      "checker-2": {
+        "role": "secondary",
+        "displayName": "Indigo Checker",
+        "canonical": "oklch(43.7% 0.173 275.4)",
+        "tonalRamp": [
+          "#06022e",
+          "#191a59",
+          "#313588",
+          "#4b53ba",
+          "#6976e0",
+          "#8d9df9",
+          "#b5c3ff",
+          "#deebff"
+        ],
+        "note": "Player 2 checkers; checker-1 is ivory #f3f5fb."
+      },
+      "good": {
+        "role": "tertiary",
+        "displayName": "Correct Green",
+        "canonical": "oklch(77.3% 0.153 163.2)",
+        "tonalRamp": [
+          "#001303",
+          "#003216",
+          "#00542f",
+          "#007949",
+          "#009c69",
+          "#51bc90",
+          "#8bdeb7",
+          "#c1ffe0"
+        ],
+        "light": "#15803d",
+        "note": "Correct, best move, win; good-strong #16a34a is the solid fill."
+      },
+      "doubtful": {
+        "role": "tertiary",
+        "displayName": "Doubtful Yellow",
+        "canonical": "oklch(86.1% 0.173 91.9)",
+        "tonalRamp": [
+          "#180700",
+          "#382000",
+          "#5c3c00",
+          "#825a00",
+          "#a57c00",
+          "#c4a12a",
+          "#e3c772",
+          "#ffeead"
+        ],
+        "light": "#a16207",
+        "note": "First severity step."
+      },
+      "bad": {
+        "role": "tertiary",
+        "displayName": "Bad Orange",
+        "canonical": "oklch(75.8% 0.159 55.9)",
+        "tonalRamp": [
+          "#210000",
+          "#471000",
+          "#702900",
+          "#9d4300",
+          "#c36604",
+          "#e08f53",
+          "#fcb888",
+          "#ffe2bc"
+        ],
+        "light": "#c2410c",
+        "note": "Second severity step; also the practice streak."
+      },
+      "vbad": {
+        "role": "tertiary",
+        "displayName": "Very Bad Red",
+        "canonical": "oklch(71.1% 0.166 22.2)",
+        "tonalRamp": [
+          "#240000",
+          "#4c010a",
+          "#781820",
+          "#a73137",
+          "#ce5557",
+          "#eb827f",
+          "#ffaeaa",
+          "#ffdad6"
+        ],
+        "light": "#dc2626",
+        "note": "Third severity step, losses, errors; vbad-strong #dc2626 is the solid fill."
+      },
+      "arrow-game": {
+        "role": "tertiary",
+        "displayName": "Game Move Coral",
+        "canonical": "oklch(65.8% 0.222 14.8)",
+        "tonalRamp": [
+          "#2a0000",
+          "#56000d",
+          "#860023",
+          "#b9003a",
+          "#e2375a",
+          "#fe7082",
+          "#ffa1ac",
+          "#ffd1d7"
+        ],
+        "note": "Arrow Code: the move actually played."
+      },
+      "arrow-best": {
+        "role": "tertiary",
+        "displayName": "Best Move Green",
+        "canonical": "oklch(72.3% 0.192 149.6)",
+        "tonalRamp": [
+          "#001400",
+          "#003300",
+          "#005505",
+          "#007a1c",
+          "#009e41",
+          "#55bf70",
+          "#8de09e",
+          "#c2ffcd"
+        ],
+        "note": "Arrow Code: the engine's best move; also legal targets."
+      },
+      "arrow-yours": {
+        "role": "tertiary",
+        "displayName": "Your Move Amber",
+        "canonical": "oklch(86.1% 0.173 91.9)",
+        "tonalRamp": [
+          "#180700",
+          "#382000",
+          "#5c3c00",
+          "#825a00",
+          "#a57c00",
+          "#c4a12a",
+          "#e3c772",
+          "#ffeead"
+        ],
+        "note": "Arrow Code: the user's practice answer; also checker selection rings."
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Practice session score only."
+      },
+      "stat": {
+        "displayName": "Stat",
+        "purpose": "Dashboard stat values; 22px / 20px variants for deck and mini stats."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page h1, one per page; 22px under 640px."
+      },
+      "prompt": {
+        "displayName": "Prompt",
+        "purpose": "The practice question line."
+      },
+      "title-lg": {
+        "displayName": "Title Large",
+        "purpose": "Position title, featured mistake, feedback verdict."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Panel heads and empty-state headings; 16px for dialogs and settings sections."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default UI text, table cells, move notation."
+      },
+      "body-sm": {
+        "displayName": "Body Small",
+        "purpose": "Secondary rows, candidate tables, hints, small buttons."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Field, stat and table labels; sentence case, never tracked."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "XGID position string only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ring",
+        "value": "0 0 0 1px var(--line)",
+        "light": "0 0 0 1px var(--line), 0 1px 2px rgba(15, 23, 42, 0.04)",
+        "purpose": "Every panel at rest (--shadow-1)."
+      },
+      {
+        "name": "floating",
+        "value": "0 0 0 1px var(--line-strong), 0 24px 64px rgba(2, 6, 23, 0.55)",
+        "light": "0 0 0 1px var(--line), 0 20px 48px rgba(15, 23, 42, 0.18)",
+        "purpose": "Toast and dialog only (--shadow-3)."
+      },
+      {
+        "name": "inset-border",
+        "value": "inset 0 0 0 1px var(--line-strong)",
+        "purpose": "Secondary and danger buttons; line variant on segmented tracks and move pills."
+      },
+      {
+        "name": "selected-ring",
+        "value": "inset 0 0 0 1.5px var(--pill-color, var(--accent))",
+        "purpose": "Pressed move pill (its arrow colour) or best cube row (good)."
+      },
+      {
+        "name": "segment-lift",
+        "value": "0 0 0 1px var(--line-strong), 0 1px 2px rgba(0, 0, 0, 0.15)",
+        "purpose": "Pressed option in a segmented control."
+      },
+      {
+        "name": "field-focus",
+        "value": "0 0 0 3px var(--accent-soft)",
+        "purpose": "Focused select/input, with the border turned accent."
+      },
+      {
+        "name": "focus-outline",
+        "value": "outline: 2px solid var(--accent); outline-offset: 2px",
+        "purpose": "Global :focus-visible."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.23, 1, 0.32, 1)",
+        "purpose": "Toasts, dialog entry, progress fill, answer bar tint, feedback pop."
+      },
+      {
+        "name": "row-hover",
+        "value": "80ms",
+        "purpose": "Background on table and list rows."
+      },
+      {
+        "name": "control",
+        "value": "120ms",
+        "purpose": "Background, colour, border and ring changes on buttons, fields, nav, pills."
+      },
+      {
+        "name": "press",
+        "value": "transform 100ms, scale(0.97)",
+        "purpose": "Button press."
+      },
+      {
+        "name": "toast",
+        "value": "180ms ease-out, translateY 12px -> 0",
+        "purpose": "Toast in and out."
+      },
+      {
+        "name": "dialog-in",
+        "value": "200ms ease-out, scale 0.96 -> 1 with fade",
+        "purpose": "Modal open."
+      },
+      {
+        "name": "pop",
+        "value": "320ms ease-out, scale 0.6 -> 1 with fade",
+        "purpose": "Right/wrong mark in the answer bar."
+      },
+      {
+        "name": "progress",
+        "value": "width 400ms ease-out",
+        "purpose": "Practice session progress bar."
+      },
+      {
+        "name": "pulse",
+        "value": "1.2s ease-in-out infinite, opacity 1 -> 0.35",
+        "purpose": "Analysing status dot only."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "prefers-reduced-motion: all durations 0.01ms",
+        "purpose": "Global opt-out."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide",
+        "value": "1280px",
+        "purpose": "At or below: review analysis under board, 7/5 splits stack, practice single column, settings nav hidden."
+      },
+      {
+        "name": "rail",
+        "value": "980px",
+        "purpose": "At or below: sidebar forced to 68px rail, review stacks, stat strip 2x2."
+      },
+      {
+        "name": "phone",
+        "value": "640px",
+        "purpose": "At or below: sidebar becomes 60px bottom tab bar, featured layouts stack."
+      }
+    ],
+    "themes": {
+      "default": "dark",
+      "attribute": "html[data-theme]",
+      "values": [
+        "light",
+        "dark"
+      ],
+      "choice": "light | system | dark, stored in localStorage ga-theme",
+      "lightTokens": "colors.*-light in the frontmatter"
+    },
+    "fonts": [
+      {
+        "family": "Inter",
+        "src": "/static/fonts/inter-latin.woff2",
+        "weights": "100 900",
+        "display": "swap",
+        "features": "\"cv11\", \"ss03\"",
+        "reason": "Deliberate: category product-UI idiom (Linear, BackgammonGalaxy), tabular figures, variable 550/650 weights. Detector flag overused-font accepted."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one action that moves the user forward; lg size for the page's main call to action.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Check <span class=\"ds-kbd\">↵</span></button> <button class=\"ds-btn ds-btn-primary ds-btn-lg\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M6 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L7.5 3.64A1 1 0 0 0 6 4.5Z\"/></svg>Practise 9 due</button>",
+      "css": ".ds-icon { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; } .ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: var(--radius-s, 6px); border: 0; font: inherit; font-family: var(--font, Inter, sans-serif); font-size: 14px; font-weight: 550; white-space: nowrap; cursor: pointer; transition: background-color 120ms, box-shadow 120ms, transform 100ms; } .ds-btn:active { transform: scale(0.97); } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-primary { background: var(--accent); color: var(--on-accent, #fff); } .ds-btn-primary:hover { background: var(--accent-hover); } .ds-btn-lg { height: 44px; padding: 0 20px; font-size: 15px; border-radius: var(--radius-m, 10px); } .ds-kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; font-size: 11px; font-weight: 600; border-radius: 4px; background: rgba(255, 255, 255, 0.18); color: inherit; }"
+    },
+    {
+      "name": "Secondary and Ghost Buttons",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Secondary: raised slate with an inset ring for supporting actions. Ghost: transparent tools and icon buttons.",
+      "html": "<button class=\"ds-btn ds-btn-secondary\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m17 8-5-5-5 5\"/><path d=\"M12 3v12\"/></svg>Import</button> <button class=\"ds-btn ds-btn-ghost\">Open in Review</button> <button class=\"ds-btn ds-btn-danger\">Remove</button>",
+      "css": ".ds-icon { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; } .ds-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: var(--radius-s, 6px); border: 0; font: inherit; font-family: var(--font, Inter, sans-serif); font-size: 14px; font-weight: 550; white-space: nowrap; cursor: pointer; transition: background-color 120ms, box-shadow 120ms, transform 100ms; } .ds-btn:active { transform: scale(0.97); } .ds-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-btn-secondary { background: var(--surface-raised); color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); } .ds-btn-secondary:hover { background: var(--surface-hover); } .ds-btn-ghost { background: transparent; color: var(--text-2); } .ds-btn-ghost:hover { background: var(--surface-hover); color: var(--text); } .ds-btn-danger { background: transparent; color: var(--vbad); box-shadow: inset 0 0 0 1px var(--line-strong); } .ds-btn-danger:hover { background: var(--vbad-soft); }"
+    },
+    {
+      "name": "Select Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Labelled 36px field in an inset well; focus turns the border accent with a soft halo.",
+      "html": "<div class=\"ds-field\"><label for=\"ds-sev\">Show</label><select id=\"ds-sev\" class=\"ds-select\"><option>Doubtful or worse</option><option>Bad or worse</option><option>Very bad only</option></select></div>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; font-family: var(--font, Inter, sans-serif); } .ds-field label { font-size: 12px; font-weight: 550; color: var(--text-3); } .ds-select { appearance: none; -webkit-appearance: none; height: 36px; padding: 0 34px 0 12px; font: inherit; font-size: 14px; color: var(--text); background-color: var(--inset); border: 1px solid var(--line); border-radius: var(--radius-s, 6px); cursor: pointer; transition: border-color 120ms, box-shadow 120ms; background-image: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238590a4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\"); background-repeat: no-repeat; background-position: right 10px center; } .ds-select:hover { border-color: var(--line-strong); } .ds-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }"
+    },
+    {
+      "name": "Sidebar Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Quiet sidebar items; the active page fills accent-soft, Practice carries the due badge.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Main\"><a class=\"ds-nav-item ds-active\" href=\"#\" aria-current=\"page\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3\" y=\"3\" width=\"7\" height=\"9\" rx=\"1.5\"/><rect x=\"14\" y=\"3\" width=\"7\" height=\"5\" rx=\"1.5\"/><rect x=\"14\" y=\"12\" width=\"7\" height=\"9\" rx=\"1.5\"/><rect x=\"3\" y=\"16\" width=\"7\" height=\"5\" rx=\"1.5\"/></svg><span>Dashboard</span></a><a class=\"ds-nav-item\" href=\"#\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"12\" r=\"5\"/><circle cx=\"12\" cy=\"12\" r=\"1.5\"/></svg><span>Practice</span><span class=\"ds-badge\">9</span></a><a class=\"ds-nav-item\" href=\"#\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\"/><path d=\"M3 3v5h5\"/><path d=\"M12 7v5l4 2\"/></svg><span>History</span></a></nav>",
+      "css": ".ds-icon { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; } .ds-nav { display: flex; flex-direction: column; gap: 2px; width: 208px; padding: 12px; background: var(--canvas); font-family: var(--font, Inter, sans-serif); } .ds-nav-item { display: flex; align-items: center; gap: 12px; height: 36px; padding: 0 10px; border-radius: var(--radius-s, 6px); color: var(--text-2); font-size: 14px; font-weight: 500; text-decoration: none; transition: background-color 120ms, color 120ms; } .ds-nav-item:hover { background: var(--surface-hover); color: var(--text); } .ds-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-nav-item.ds-active { background: var(--accent-soft); color: var(--accent-text); } .ds-badge { margin-left: auto; display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: var(--on-accent, #fff); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": "segmented",
+      "description": "Inset track with a lifted pressed option; theme switch and threshold presets.",
+      "html": "<div class=\"ds-seg\" role=\"group\" aria-label=\"Theme\"><button type=\"button\" aria-pressed=\"false\" title=\"Light\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"4\"/><path d=\"M12 2v2\"/><path d=\"M12 20v2\"/><path d=\"m4.93 4.93 1.41 1.41\"/><path d=\"m17.66 17.66 1.41 1.41\"/><path d=\"M2 12h2\"/><path d=\"M20 12h2\"/><path d=\"m6.34 17.66-1.41 1.41\"/><path d=\"m19.07 4.93-1.41 1.41\"/></svg></button><button type=\"button\" aria-pressed=\"false\" title=\"System\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M8 21h8\"/><path d=\"M12 17v4\"/></svg></button><button type=\"button\" aria-pressed=\"true\" title=\"Dark\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z\"/></svg></button></div> <div class=\"ds-seg\" role=\"group\" aria-label=\"Preset\"><button type=\"button\" aria-pressed=\"true\">gnubg</button><button type=\"button\" aria-pressed=\"false\">XG-style</button><button type=\"button\" aria-pressed=\"false\">Custom</button></div>",
+      "css": ".ds-icon { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; } .ds-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--radius-m, 10px); background: var(--inset); box-shadow: inset 0 0 0 1px var(--line); font-family: var(--font, Inter, sans-serif); } .ds-seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text-3); font: inherit; font-size: 13px; font-weight: 550; cursor: pointer; transition: background-color 120ms, color 120ms; } .ds-seg button:hover { color: var(--text); } .ds-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-seg button[aria-pressed=\"true\"] { background: var(--surface-raised); color: var(--text); box-shadow: 0 0 0 1px var(--line-strong), 0 1px 2px rgba(0, 0, 0, 0.15); }"
+    },
+    {
+      "name": "Severity Chips and Tags",
+      "kind": "chip",
+      "refersTo": "sev-very-bad",
+      "description": "Severity ladder chips (word + square dot), fact chips and candidate tags.",
+      "html": "<div class=\"ds-row\"><span class=\"ds-sev ds-vbad\">Very bad</span><span class=\"ds-sev ds-bad\">Bad</span><span class=\"ds-sev ds-doubtful\">Doubtful</span><span class=\"ds-sev ds-ok\">Good</span></div><div class=\"ds-row\"><span class=\"ds-chip\">Game 1 · move 6</span><span class=\"ds-chip\"><strong>0–0</strong> to 3</span><span>18/14 13/9<span class=\"ds-tag ds-best\">best</span></span><span>18/16 13/9 10/8<span class=\"ds-tag ds-game\">game</span></span></div>",
+      "css": ".ds-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; font-family: var(--font, Inter, sans-serif); font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; } .ds-sev { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; } .ds-sev::before { content: \"\"; width: 6px; height: 6px; border-radius: 2px; background: currentColor; } .ds-vbad { background: var(--vbad-soft); color: var(--vbad); } .ds-bad { background: var(--bad-soft); color: var(--bad); } .ds-doubtful { background: var(--doubtful-soft); color: var(--doubtful); } .ds-ok { background: var(--good-soft); color: var(--good); } .ds-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 7px; background: var(--inset); color: var(--text-2); font-size: 12px; font-weight: 500; } .ds-chip strong { color: var(--text); font-weight: 600; } .ds-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 650; line-height: 18px; } .ds-tag.ds-best { background: var(--good-soft); color: var(--good); } .ds-tag.ds-game { background: var(--vbad-soft); color: var(--vbad); }"
+    },
+    {
+      "name": "Panel with Stat Strip",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Ringed slate panel; head with title and hint, cells divided by hairlines, tabular stat values.",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-head\"><h2>Practice deck</h2><span>All time, your errors</span></div><div class=\"ds-stats\"><div class=\"ds-stat\"><span class=\"ds-label\">Last match PR</span><span class=\"ds-value\">9.6</span><span class=\"ds-foot\">Lower is better</span></div><div class=\"ds-stat\"><span class=\"ds-label\">Due for practice</span><span class=\"ds-value\">9<small>of 10</small></span><span class=\"ds-foot\">1 solved · 2 missed</span></div></div></section>",
+      "css": ".ds-panel { background: var(--surface); border-radius: var(--radius-l, 14px); box-shadow: var(--shadow-1, 0 0 0 1px var(--line)); color: var(--text); font-family: var(--font, Inter, sans-serif); font-size: 14px; max-width: 520px; } .ds-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); } .ds-panel-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; } .ds-panel-head span { color: var(--text-3); font-size: 12px; } .ds-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } .ds-stat { display: flex; flex-direction: column; gap: 4px; padding: 18px 22px; } .ds-stat + .ds-stat { border-left: 1px solid var(--line); } .ds-label { font-size: 12px; font-weight: 550; color: var(--text-3); } .ds-value { font-size: 30px; font-weight: 650; letter-spacing: -0.025em; line-height: 1.15; font-variant-numeric: tabular-nums; } .ds-value small { font-size: 14px; font-weight: 550; color: var(--text-3); letter-spacing: 0; margin-left: 4px; } .ds-foot { font-size: 12px; color: var(--text-3); }"
+    },
+    {
+      "name": "Move Pills",
+      "kind": "custom",
+      "refersTo": "move-pill",
+      "description": "Toggle the game and best arrows; dot and pressed ring carry the Arrow Code colour.",
+      "html": "<div class=\"ds-pills\"><button class=\"ds-pill\" aria-pressed=\"true\" style=\"--pill-color: var(--arrow-game)\"><span class=\"ds-dot\"></span>18/16 13/9 10/8 <span class=\"ds-cost\">−0.162</span></button><button class=\"ds-pill\" aria-pressed=\"false\" style=\"--pill-color: var(--arrow-best)\"><span class=\"ds-dot\"></span>18/14 13/9 <span class=\"ds-cost\">best</span></button></div>",
+      "css": ".ds-pills { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-width: 480px; font-family: var(--font, Inter, sans-serif); } .ds-pill { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 6px 12px; border: 0; border-radius: var(--radius-m, 10px); background: var(--inset); color: var(--text-2); font: inherit; font-size: 14px; font-weight: 550; font-variant-numeric: tabular-nums; cursor: pointer; box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow 120ms, color 120ms, background-color 120ms; } .ds-pill:hover { color: var(--text); } .ds-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-pill[aria-pressed=\"true\"] { color: var(--text); background: var(--surface-raised); box-shadow: inset 0 0 0 1.5px var(--pill-color, var(--accent)); } .ds-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--pill-color); flex: none; } .ds-cost { color: var(--text-3); font-weight: 500; }"
+    },
+    {
+      "name": "Answer Bar (wrong)",
+      "kind": "custom",
+      "refersTo": "button-stop",
+      "description": "Practice feedback strip: tinted bar, popped verdict mark, plain-words cost, verdict-coloured Continue.",
+      "html": "<div class=\"ds-answer ds-wrong\"><div class=\"ds-feedback\"><span class=\"ds-mark\"><svg class=\"ds-icon\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/></svg></span><div><h3>Very bad move</h3><p>You lost <strong>0.895</strong> (rough estimate). Best: <strong>18/14 13/9</strong></p></div></div><span class=\"ds-spacer\"></span><button class=\"ds-next\">Continue <span class=\"ds-kbd\">↵</span></button></div>",
+      "css": ".ds-icon { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; } .ds-answer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px 22px; background: var(--vbad-soft); border-radius: 0 0 var(--radius-l, 14px) var(--radius-l, 14px); font-family: var(--font, Inter, sans-serif); color: var(--text); } .ds-feedback { display: flex; align-items: center; gap: 14px; min-width: 0; } .ds-mark { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--vbad-strong); color: #fff; animation: ds-pop 320ms cubic-bezier(0.23, 1, 0.32, 1); } .ds-mark .ds-icon { width: 24px; height: 24px; stroke-width: 2.6; } .ds-feedback h3 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; color: var(--vbad); } .ds-feedback p { margin: 0; color: var(--text-2); font-size: 13px; } .ds-feedback p strong { color: var(--text); font-variant-numeric: tabular-nums; } .ds-spacer { flex: 1; } .ds-next { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 20px; border: 0; border-radius: var(--radius-m, 10px); background: var(--vbad-strong); color: #fff; font: inherit; font-size: 15px; font-weight: 550; cursor: pointer; transition: background-color 120ms, transform 100ms; } .ds-next:hover { background: #b91c1c; } .ds-next:active { transform: scale(0.97); } .ds-next:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; } .ds-kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; font-size: 11px; font-weight: 600; border-radius: 4px; background: rgba(255, 255, 255, 0.18); } @keyframes ds-pop { from { transform: scale(0.6); opacity: 0; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Analysis Desk",
+    "overview": "A navy desk at night with one lit object on it: the blue backgammon board. Everything else on the screen is the paperwork beside it, numbers, move lists, severity chips, quietly laid out in slate panels that step up a few percent in lightness per level. The world is deliberately the category standard for backgammon and chess analysis (BackgammonGalaxy's blunder review, Lichess analysis, Linear's product shell, Duolingo-style right/wrong feedback) done at full craft, not a novel aesthetic. Recognition is the feature: a strong player should know where to look before reading a word.\n\nDensity is that of a product tool used for long evening sessions with keyboard and mouse: 14px body, 36px controls, 16px grid gaps, panels with hairline rings instead of shadows. Dark (navy ink) and light (cool paper) are both first-class and share every token name; only values change. Colour carries meaning in exactly three families (one blue for action, a yellow/orange/red severity ladder plus green for correct, and the four arrow colours on the board), and every coloured meaning is also carried by a label, a dot or a shape.\n\nThe shell refuses the generic Material-card look and the \"grey screen with one blue button\": surfaces are tonal, not white boxes floating on drop shadows, and the board, not a hero card, is the visual centre of every page that has one.",
+    "keyCharacteristics": [
+      "Navy ink canvas (dark) or cool paper (light), slate panels with a 1px ring, one blue accent.",
+      "A Galaxy-style two-tone blue board with white and indigo checkers as the main object.",
+      "Severity ladder: doubtful yellow, bad orange, very bad red, good green; always labelled.",
+      "Move arrows: red = game move, green = best, amber = yours, white = any candidate.",
+      "Inter throughout, tabular figures on every number, tight negative tracking on large type.",
+      "Keyboard-first: keycaps shown inline in buttons, `\\` collapses the sidebar rail."
+    ],
+    "rules": [
+      {
+        "name": "The One Blue Rule",
+        "body": "`accent` is the only colour that means \"do this\". Never use a severity or arrow colour for a neutral action, and never introduce a second action hue. The only exceptions are the Duolingo-style Continue buttons after an answer (`good-strong` / `vbad-strong`), which echo the verdict.",
+        "section": "colors"
+      },
+      {
+        "name": "The Arrow Code Rule",
+        "body": "The four arrow colours mean the same thing wherever they appear: board arrow, pill dot, answer-line stroke, tag. A new surface that shows a move uses this code or no colour at all.",
+        "section": "colors"
+      },
+      {
+        "name": "The Labelled Signal Rule",
+        "body": "Severity and correctness are never colour alone: a chip carries its word (\"Very bad\") plus a square dot, a count sits in its column, a feedback bar carries an icon and a headline. Colour reinforces; text decides.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Numbers Rule",
+        "body": "Every number that can sit above or beside another number (equities, PR, pips, scores, counts, percentages, timestamps) uses tabular figures. Equities are signed with a true minus (−) and three decimals.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tight Large Type Rule",
+        "body": "Tracking tightens as size grows: 0 at 14px and below, −0.01em at 15–16px, −0.015 to −0.02em at 18–24px, −0.022 to −0.025em at 26–30px, −0.04em at 64px.",
+        "section": "typography"
+      },
+      {
+        "name": "The Sentence-Case Label Rule",
+        "body": "Labels are 12px / 550 / `text-3` in sentence case. Hierarchy comes from weight and colour, not capitals or letter-spacing.",
+        "section": "typography"
+      },
+      {
+        "name": "The Board First Rule",
+        "body": "On any page with a board, the board takes the flexible column and is sized from the viewport height (`max(360px, (100vh − 270px) × 1.27)` in review, `max(380px, (100vh − 410px) × 1.27)` in practice) so the whole position is visible without scrolling. Side columns are fixed widths; the board never shrinks to make room for numbers.",
+        "section": "layout"
+      },
+      {
+        "name": "The Ring Not Shadow Rule",
+        "body": "Borders are drawn as 1px shadows or inset rings, never as drop shadows on resting content. A blurred shadow means \"this floats above the page\" and is reserved for toasts and dialogs.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** keep `accent` the only action colour and give each page one `lg` primary button.",
+      "**Do** draw resting panels as `surface` + 1px `line` ring at 14px radius; save `shadow-3` for toasts and dialogs.",
+      "**Do** use tabular figures and a true minus (−) with three decimals for every equity.",
+      "**Do** pair every severity or correctness colour with its word, a dot or an icon.",
+      "**Do** use the Arrow Code (red game, green best, amber yours, white candidate) for any move shown in colour, on or off the board.",
+      "**Do** give the board the flexible column and size it from the viewport height so the full position fits.",
+      "**Do** show keyboard shortcuts as keycaps inside the control they trigger.",
+      "**Do** define every new colour as a token in both the dark and light blocks of `style.css`.",
+      "**Do** use inline 1.8-stroke Lucide-style SVG icons from `ICONS` in `core.js`."
+    ],
+    "donts": [
+      "**Don't** add a second accent hue or use severity colours for neutral actions.",
+      "**Don't** put blurred drop shadows on resting cards, or stack a card inside a card.",
+      "**Don't** set labels in uppercase or with wide letter-spacing, and don't add eyebrow or kicker lines above headings.",
+      "**Don't** use coloured side stripes, gradient text or Unicode glyphs as icons (key symbols such as ⌫ and ↵ belong only inside a keycap).",
+      "**Don't** recolour the board per theme beyond the existing light/dark token pairs; it stays a blue two-tone board in both.",
+      "**Don't** let numbers replace the board: a position is always shown as a board with its numbers beside it.",
+      "**Don't** hardcode hex values in components or JS; reference the `var(--…)` tokens."
+    ]
+  }
+}

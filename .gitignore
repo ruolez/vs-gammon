@@ -1,0 +1,19 @@
+# user data and local state (kept on update)
+data/
+exports/
+backups/
+.env
+
+# personal files in the project root
+/*.mat
+/*.xgp
+
+# tooling
+.claude/
+.impeccable/mocks/
+.impeccable/review/
+.impeccable/questions/
+.impeccable/config.local.json
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,5 @@
+# Installed from Debian trixie packages in the Dockerfile (python3-flask, python3-pil, gunicorn).
+# Listed here for reference only.
+flask>=3.1
+pillow>=11
+gunicorn>=23
