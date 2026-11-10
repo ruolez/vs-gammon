@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>VS Gammon</string>
+  <key>CFBundleDisplayName</key><string>VS Gammon</string>
+  <key>CFBundleIdentifier</key><string>com.vsgammon.app</string>
+  <key>CFBundleExecutable</key><string>VS Gammon</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
+  <key>CFBundleShortVersionString</key><string>@VERSION@</string>
+  <key>CFBundleVersion</key><string>@VERSION@</string>
+  <key>LSMinimumSystemVersion</key><string>@MIN_MACOS@</string>
+  <key>LSApplicationCategoryType</key><string>public.app-category.board-games</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
+  <key>NSDownloadsFolderUsageDescription</key><string>VS Gammon reads new match files from folders you choose to watch. It never changes them.</string>
+  <key>NSDesktopFolderUsageDescription</key><string>VS Gammon reads new match files from folders you choose to watch. It never changes them.</string>
+  <key>NSDocumentsFolderUsageDescription</key><string>VS Gammon reads new match files from folders you choose to watch. It never changes them.</string>
+  <key>CFBundleDocumentTypes</key>
+  <array><dict>
+    <key>CFBundleTypeName</key><string>Backgammon match</string>
+    <key>CFBundleTypeRole</key><string>Viewer</string>
+    <key>LSHandlerRank</key><string>Alternate</string>
+    <key>LSItemContentTypes</key><array><string>com.vsgammon.mat</string></array>
+  </dict></array>
+  <key>UTImportedTypeDeclarations</key>
+  <array><dict>
+    <key>UTTypeIdentifier</key><string>com.vsgammon.mat</string>
+    <key>UTTypeDescription</key><string>Backgammon match</string>
+    <key>UTTypeConformsTo</key><array><string>public.data</string></array>
+    <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>mat</string></array></dict>
+  </dict></array>
+</dict>
+</plist>

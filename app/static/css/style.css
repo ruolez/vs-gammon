@@ -192,7 +192,7 @@ p { margin: 0; text-wrap: pretty; }
 [data-sidebar="collapsed"] .app .sidebar .theme-cycle { display: inline-flex; }
 [data-sidebar="collapsed"] .app .seg.theme, [data-sidebar="collapsed"] .app .watch-line { display: none; }
 [data-sidebar="collapsed"] .app .nav-item { position: relative; }
-[data-sidebar="collapsed"] .app .nav-item .badge { display: grid; position: absolute; top: 1px; right: 4px; min-width: 16px; height: 16px; font-size: 11px; padding: 0 4px; }
+[data-sidebar="collapsed"] .app .nav-item .badge { display: grid; position: absolute; top: -5px; right: -3px; min-width: 16px; height: 16px; font-size: 11px; padding: 0 4px; }
 .foot-row { display: flex; gap: 6px; align-items: center; }
 [data-sidebar="collapsed"] .app .nav-label, [data-sidebar="collapsed"] .app .brand-name, [data-sidebar="collapsed"] .app .engine-line { display: none; }
 [data-sidebar="collapsed"] .app .nav-item, [data-sidebar="collapsed"] .app .brand { justify-content: center; padding-left: 0; padding-right: 0; }
@@ -316,6 +316,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); width
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.error { color: var(--vbad); }
+.toast-action, .link-btn { border: 0; padding: 0; background: none; font: inherit; font-weight: 600; color: var(--accent); cursor: pointer; }
+.toast-action { margin-left: 8px; }
 dialog.modal { border: 0; padding: 0; border-radius: var(--radius-xl); background: var(--surface-overlay); color: var(--text); box-shadow: var(--shadow-3); width: min(620px, calc(100vw - 32px)); max-height: 82vh; }
 dialog.modal::backdrop { background: rgba(2, 6, 23, 0.55); }
 dialog.modal[open] { display: flex; flex-direction: column; animation: dialog-in 200ms var(--ease-out); }
@@ -624,7 +626,7 @@ dialog.modal[open] { display: flex; flex-direction: column; animation: dialog-in
   .app .nav-label, .app .brand-name, .app .engine-line, .app .seg.theme, .app .watch-line { display: none; }
   .app .sidebar .theme-cycle { display: inline-flex; }
   .app .nav-item { position: relative; }
-  .app .nav-item .badge { position: absolute; top: 1px; right: 4px; min-width: 16px; height: 16px; font-size: 11px; padding: 0 4px; }
+  .app .nav-item .badge { position: absolute; top: -5px; right: -3px; min-width: 16px; height: 16px; font-size: 11px; padding: 0 4px; }
   .app .nav-item, .app .brand { justify-content: center; padding-left: 0; padding-right: 0; }
   .app .foot-row, .app .seg.theme { flex-direction: column; }
   .app .seg.theme { width: 100%; }

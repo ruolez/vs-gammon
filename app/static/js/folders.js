@@ -18,7 +18,7 @@ const Folders = (() => {
       <div class="folder">
         <span class="ic">${icon("folder")}</span>
         <div><div class="path">${esc(short(f.path))}</div>
-          <div class="meta">${f.last_scan_at ? t("Checked {time}", { time: new Date(f.last_scan_at).toLocaleTimeString(I18n.locale(), { hour: "numeric", minute: "2-digit" }) }) : t("Not checked yet")}${f.last_error ? ` · <span class="err">${esc(I18n.server(f.last_error))}</span>` : ""}</div></div>
+          <div class="meta">${f.last_scan_at ? t("Checked {time}", { time: new Date(f.last_scan_at).toLocaleTimeString(I18n.locale(), { hour: "numeric", minute: "2-digit" }) }) : t("Not checked yet")}${f.last_error ? ` · <span class="err">${esc(I18n.server(f.last_error))}</span>${Native.available ? ` <button type="button" class="link-btn" data-privacy>${t("Open System Settings")}</button>` : ""}` : ""}</div></div>
         <div class="opts">
           <label class="check"><input type="checkbox" data-recursive="${f.id}" ${f.recursive ? "checked" : ""}> ${t("Subfolders")}</label>
           <label class="check"><input type="checkbox" data-enabled="${f.id}" ${f.enabled ? "checked" : ""}> ${t("Active")}</label>
@@ -69,8 +69,22 @@ const Folders = (() => {
     dialog.querySelector(".dir")?.focus();
   }
 
+  async function pickNative() {
+    const path = await Native.call("pickFolder", { start: `${home}/Downloads` });
+    if (!path) return;
+    try {
+      const data = await api.post("/api/folders", { path, recursive: false });
+      render({ available: true, home, folders: data.folders });
+      toast(t("Watching {path}. Match files already there are imported now.", { path: short(path) }));
+      Shell.refresh();
+      setTimeout(refresh, 3000);
+    } catch (err) {
+      toast(err.message, true, /permission|доступ/i.test(err.message) ? Native.privacyAction() : null);
+    }
+  }
+
   function init() {
-    $("add-folder").addEventListener("click", () => browse(`${home}/Downloads`));
+    $("add-folder").addEventListener("click", () => (Native.available ? pickNative() : browse(`${home}/Downloads`)));
     $("folder-dialog").addEventListener("click", (ev) => { if (ev.target === ev.currentTarget) ev.currentTarget.close(); });
     $("scan-now").addEventListener("click", async () => {
       try {
@@ -93,6 +107,7 @@ const Folders = (() => {
       }
     });
     $("folder-list").addEventListener("click", async (ev) => {
+      if (ev.target.closest("[data-privacy]")) return Native.call("openPrivacySettings");
       const remove = ev.target.closest("[data-remove]");
       if (!remove) return;
       try {

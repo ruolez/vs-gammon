@@ -3,11 +3,15 @@ import json
 import os
 import subprocess
 import tempfile
+import threading
 
 GNUBG = os.environ.get("GNUBG_BIN", "/usr/games/gnubg")
 DRIVER = os.path.join(os.path.dirname(__file__), "analyse_gnubg.py")
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_TIMEOUT = 3600
+
+_running = set()
+_stopping = threading.Event()
 
 
 class EngineError(Exception):
@@ -27,6 +31,21 @@ def gnubg_version():
         return None
 
 
+def engine_command(binary, work, env):
+    command = [binary, "-t", "-q", "-r", "-s", work]
+    if env.get("GNUBG_DATADIR"):
+        command += ["-D", env["GNUBG_DATADIR"]]
+    if env.get("GNUBG_PKGDATADIR"):
+        command += ["-P", env["GNUBG_PKGDATADIR"]]
+    return command + ["-p", DRIVER]
+
+
+def stop_running():
+    _stopping.set()
+    for proc in list(_running):
+        proc.kill()
+
+
 def run_analysis(mat_path, plies=2, threads=4, timeout=DEFAULT_TIMEOUT):
     with tempfile.TemporaryDirectory(prefix="gnubg-") as work:
         output = os.path.join(work, "result.json")
@@ -39,15 +58,24 @@ def run_analysis(mat_path, plies=2, threads=4, timeout=DEFAULT_TIMEOUT):
             "GA_THREADS": str(threads),
             "GA_APP_ROOT": APP_ROOT,
         }
+        proc = subprocess.Popen(
+            engine_command(GNUBG, work, env),
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env, cwd=work,
+        )
+        _running.add(proc)
         try:
-            proc = subprocess.run(
-                [GNUBG, "-t", "-q", "-r", "-s", work, "-p", DRIVER],
-                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout, env=env, cwd=work,
-            )
+            stdout, stderr = proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired as exc:
+            proc.kill()
+            proc.communicate()
             raise EngineError(f"analysis timed out after {timeout} s") from exc
+        finally:
+            _running.discard(proc)
+        if _stopping.is_set():
+            # The app is quitting: leave the match marked as analysing so it is requeued on next launch.
+            threading.Event().wait()
         if not os.path.exists(output):
-            tail = (proc.stderr or proc.stdout or "")[-2000:]
+            tail = (stderr or stdout or "")[-2000:]
             raise EngineError(f"gnubg exited with code {proc.returncode} without a result: {tail}")
         with open(output) as f:
             result = json.load(f)

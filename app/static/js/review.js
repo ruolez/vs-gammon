@@ -189,7 +189,7 @@ function renderBoardPanel(d) {
   }));
   $("copy-xgid").addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(d.xgid);
+      await (Native.available ? Native.call("copy", { text: d.xgid }) : navigator.clipboard.writeText(d.xgid));
       toast(t("XGID copied. Paste it into eXtreme Gammon."));
     } catch (_) {
       toast(t("Copy failed. Select the text and copy it by hand."), true);
@@ -286,15 +286,22 @@ async function exportSelected() {
   try {
     const response = await api.request("POST", "/api/export", { decision_ids: ids });
     const blob = await response.blob();
-    const name = (response.headers.get("Content-Disposition") || "").match(/filename=([^;]+)/);
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = name ? name[1].replace(/"/g, "") : "positions.zip";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-    toast(t("Exported {positions} for eXtreme Gammon", { positions: plural(ids.length, "position") }));
+    const header = (response.headers.get("Content-Disposition") || "").match(/filename=([^;]+)/);
+    const filename = header ? header[1].replace(/"/g, "") : "positions.zip";
+    const done = t("Exported {positions} for eXtreme Gammon", { positions: plural(ids.length, "position") });
+    if (Native.available) {
+      const path = await Native.saveBlob(blob, filename);
+      if (path) toast(done, false, { label: t("Show in Finder"), run: () => Native.call("reveal", { path }) });
+    } else {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+      toast(done);
+    }
   } catch (err) {
     toast(err.message, true);
   }

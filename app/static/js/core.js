@@ -148,7 +148,7 @@ function confirmDialog({ title, body, action }) {
   });
 }
 
-function toast(message, isError = false) {
+function toast(message, isError = false, action = null) {
   let el = document.querySelector(".toast");
   if (!el) {
     el = document.createElement("div");
@@ -156,11 +156,12 @@ function toast(message, isError = false) {
     el.setAttribute("role", "status");
     document.body.appendChild(el);
   }
-  el.innerHTML = `${icon(isError ? "alert" : "check")}<span>${esc(message)}</span>`;
+  el.innerHTML = `${icon(isError ? "alert" : "check")}<span>${esc(message)}</span>${action ? `<button type="button" class="toast-action">${esc(action.label)}</button>` : ""}`;
+  if (action) el.querySelector(".toast-action").addEventListener("click", action.run);
   el.classList.toggle("error", isError);
   el.classList.add("show");
   clearTimeout(el._timer);
-  el._timer = setTimeout(() => el.classList.remove("show"), isError ? 6000 : 3200);
+  el._timer = setTimeout(() => el.classList.remove("show"), action ? 9000 : isError ? 6000 : 3200);
 }
 
 /* ---------- remembered choices (per browser) ---------- */
@@ -194,6 +195,7 @@ const Theme = {
   },
   apply() {
     document.documentElement.dataset.theme = this.resolved(this.get());
+    document.dispatchEvent(new CustomEvent("themechange"));
     document.querySelectorAll("[data-theme-choice]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeChoice === this.get())));
     const cycle = document.getElementById("theme-cycle");
     if (cycle) {
@@ -312,7 +314,69 @@ const Shell = {
   },
 };
 
-document.addEventListener("DOMContentLoaded", () => Shell.render());
+/* ---------- macOS app bridge: absent in a browser ---------- */
+const Native = {
+  available: Boolean(window.webkit?.messageHandlers?.vsg),
+  call(name, args = {}) {
+    return window.webkit.messageHandlers.vsg.postMessage({ name, args });
+  },
+  menuStrings() {
+    return {
+      "About VS Gammon": t("About VS Gammon"), "Check for Updates…": t("Check for Updates…"), "Settings…": t("Settings…"),
+      "Hide VS Gammon": t("Hide VS Gammon"), "Hide Others": t("Hide Others"), "Show All": t("Show All"), "Quit VS Gammon": t("Quit VS Gammon"),
+      "File": t("File"), "Import Matches…": t("Import Matches…"), "Close Window": t("Close Window"),
+      "Edit": t("Edit"), "Undo": t("Undo"), "Redo": t("Redo"), "Cut": t("Cut"), "Copy": t("Copy"), "Paste": t("Paste"), "Select All": t("Select All"),
+      "View": t("View"), "Dashboard": t("Dashboard"), "Practice": t("Practice"), "Review": t("Review"), "Matches": t("Matches"), "History": t("History"),
+      "Back": t("Back"), "Forward": t("Forward"), "Reload": t("Reload"),
+      "Larger Text": t("Larger Text"), "Smaller Text": t("Smaller Text"), "Actual Size": t("Actual Size"),
+      "Theme": t("Theme"), "Light": t("Light"), "Dark": t("Dark"), "Match System": t("Match System"), "Language": t("Language"),
+      "Toggle Sidebar": t("Toggle Sidebar"), "Enter Full Screen": t("Enter Full Screen"),
+      "Window": t("Window"), "Minimize": t("Minimize"), "Zoom": t("Zoom"),
+      "Help": t("Help"), "VS Gammon Help": t("VS Gammon Help"), "GNU Backgammon Source Code": t("GNU Backgammon Source Code"),
+      "Analysis is still running": t("Analysis is still running"),
+      "It carries on from the start of that match next time you open VS Gammon.": t("It carries on from the start of that match next time you open VS Gammon."),
+      "Quit": t("Quit"), "Cancel": t("Cancel"),
+    };
+  },
+  syncAppearance() {
+    Native.call("sync", { theme: document.documentElement.dataset.theme, background: getComputedStyle(document.body).backgroundColor });
+  },
+  async saveBlob(blob, name) {
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    return Native.call("saveFile", { name, base64: dataUrl.split(",")[1] });
+  },
+  privacyAction() {
+    return { label: t("Open System Settings"), run: () => Native.call("openPrivacySettings") };
+  },
+  async notifyNewEvents() {
+    const { events } = await api.get("/api/history?limit=5");
+    const newest = events.length ? events[0].id : 0;
+    const stored = parseInt(localStorage.getItem("ga-seen-event"), 10);
+    const seen = Number.isNaN(stored) ? newest : stored;
+    const fresh = events.filter((e) => e.id > seen && ["analysed", "analysis_failed"].includes(e.kind)).reverse();
+    for (const e of fresh) {
+      Native.call("notify", { title: e.kind === "analysed" ? t("Analysis finished") : t("Analysis failed"), body: I18n.server(e.message) });
+    }
+    localStorage.setItem("ga-seen-event", String(newest));
+    if (fresh.length) Shell.refresh();
+  },
+  init() {
+    if (!Native.available) return;
+    Native.call("sync", { strings: Native.menuStrings() });
+    Native.syncAppearance();
+    document.addEventListener("themechange", Native.syncAppearance);
+    document.addEventListener("shellinfo", (ev) => Native.call("sync", { due: ev.detail.due }));
+    Native.notifyNewEvents().catch(() => {});
+    setInterval(() => Native.notifyNewEvents().catch(() => {}), 10000);
+  },
+};
+
+document.addEventListener("DOMContentLoaded", () => { Shell.render(); Native.init(); });
 document.addEventListener("keydown", (ev) => {
   if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName) || ev.metaKey || ev.ctrlKey) return;
   if (ev.key === "\\") Shell.toggleCollapse();

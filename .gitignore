@@ -17,3 +17,7 @@ backups/
 __pycache__/
 *.pyc
 .DS_Store
+
+# macOS app build output
+/packaging/macos/build/
+/dist/
