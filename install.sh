@@ -144,7 +144,7 @@ fetch_source() {
   elif [ -e "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]; then
     die "$INSTALL_DIR exists but is not a VS Gammon install. Move it away, or set VSG_HOME to another folder."
   else
-    info "Downloading VS Gammon into $INSTALL_DIR…"
+    info "Downloading VS Gammon into ${INSTALL_DIR}…"
     git clone --quiet --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
   fi
   chmod +x "$INSTALL_DIR/install.sh" "$INSTALL_DIR/scripts/launch.sh" 2>/dev/null || true
