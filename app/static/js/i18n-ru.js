@@ -485,7 +485,26 @@
       "Show in Finder": "Показать в Finder",
       "Open System Settings": "Открыть Системные настройки",
 
+      "Your matches are ready to move": "Ваши матчи можно перенести",
+      "VS Gammon found your matches and practice history from the Docker version. They are copied here and the originals stay as they are.": "VS Gammon нашёл ваши матчи и историю тренировок из версии для Docker. Они будут скопированы сюда, а оригиналы останутся без изменений.",
+      "Bring them over": "Перенести",
+      "Start fresh": "Начать с нуля",
+
+      "Updates": "Обновления",
+      "New versions keep all your matches and practice history.": "Новые версии сохраняют все ваши матчи и историю тренировок.",
+      "Check whether a newer version is out": "Проверьте, вышла ли новая версия",
+      "Check for updates": "Проверить обновления",
+      "Update and restart": "Обновить и перезапустить",
+      "VS Gammon {version}": "VS Gammon {version}",
+      "Version {version} is available": "Доступна версия {version}",
+      "You have the latest version": "У вас последняя версия",
+      "Could not reach the update server. Check your connection.": "Не удалось связаться с сервером обновлений. Проверьте подключение.",
+      "Downloading the update…": "Загружаем обновление…",
+      "Move VS Gammon to your Applications folder, then try again.": "Переместите VS Gammon в папку «Программы» и попробуйте снова.",
+      "The update could not be installed. Your current version is unchanged.": "Не удалось установить обновление. Текущая версия не изменилась.",
+
       // messages from the server
+      "there is nothing to bring over": "переносить нечего",
       "{name}: PR {pr}, {errors} ({blunders} very bad)": "{name}: PR {pr}, {errors} (очень плохих: {blunders})",
       "Analysed {match} at {plies}-ply in {seconds} s, {decisions}. {summary}": "Проанализирован {match}, глубина {plies}-ply, {seconds} с, {decisions}. {summary}",
       "Analysis of {match} failed: {reason}": "Не удалось проанализировать {match}: {reason}",

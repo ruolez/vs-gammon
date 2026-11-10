@@ -5,7 +5,7 @@ import threading
 
 from flask import Flask, abort, g, jsonify, request, send_file, send_from_directory
 
-from app import db, jobs, watcher
+from app import db, jobs, migrate_docker, watcher
 from app.dashboard import build_dashboard
 from app.analysis import classify, grade_checker, grade_cube, is_correct, summarize
 from app.engine.runner import gnubg_version
@@ -97,6 +97,7 @@ def create_app(config=None):
         EXPORT_DIR=os.environ.get("EXPORT_DIR", "/srv/exports"),
         HOST_HOME=os.environ.get("HOST_HOME") or None,
         HOST_ROOT=os.environ.get("HOST_ROOT", "/host"),
+        DOCKER_SOURCE=os.environ.get("VSG_DOCKER_SOURCE") or None,
         START_WORKER=True,
         MAX_CONTENT_LENGTH=MAX_UPLOAD_BYTES * 20,
     )
@@ -239,7 +240,17 @@ def create_app(config=None):
             stats = db.practice_stats(conn(), player_name=me, min_error=t["doubtful"])
             due = stats["new"] + stats["missed"]
         watching = [f["path"] for f in db.list_folders(conn()) if f["enabled"]]
-        return jsonify(me=me, due=due, watching=watching, folders=folders_available, engine=gnubg_version())
+        return jsonify(me=me, due=due, watching=watching, folders=folders_available, engine=gnubg_version(),
+                       docker_data=migrate_docker.available(app.config["DOCKER_SOURCE"], conn()))
+
+    @app.post("/api/import-docker")
+    def import_docker():
+        if not migrate_docker.available(app.config["DOCKER_SOURCE"], conn()):
+            raise ValueError("there is nothing to bring over")
+        count = migrate_docker.import_docker_data(app.config["DOCKER_SOURCE"], conn(), data_dir, app.config["EXPORT_DIR"])
+        wake.set()
+        wake_scan.set()
+        return jsonify(matches=count)
 
     @app.get("/api/dashboard")
     def dashboard():

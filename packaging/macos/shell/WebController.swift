@@ -85,6 +85,12 @@ final class WebController: NSObject, WKNavigationDelegate, WKUIDelegate, WKScrip
         case "openPrivacySettings":
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders")!)
             replyHandler(nil, nil)
+        case "appInfo":
+            replyHandler(["version": Updater.currentVersion], nil)
+        case "checkUpdate":
+            owner?.updater.check { replyHandler($0, $1) }
+        case "installUpdate":
+            owner?.installUpdate { replyHandler($0, $1) }
         case "notify":
             notify(args)
             replyHandler(nil, nil)

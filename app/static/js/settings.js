@@ -101,7 +101,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   $("watch-interval").addEventListener("change", () => save({ watch_interval: Number($("watch-interval").value) }, t("Check interval saved")));
+  if (Native.available) initUpdates();
   document.addEventListener("shellinfo", (ev) => {
     if (ev.detail.engine) $("engine-version").textContent = t("Runs every match again with {engine}", { engine: ev.detail.engine.replace(/ \d{8}$/, "") });
   });
 });
+
+async function initUpdates() {
+  $("updates").hidden = false;
+  $("updates-link").hidden = false;
+  const { version } = await Native.call("appInfo");
+  $("app-version").textContent = t("VS Gammon {version}", { version });
+  $("check-updates").addEventListener("click", async () => {
+    $("check-updates").disabled = true;
+    try {
+      const result = await Native.call("checkUpdate");
+      $("update-status").textContent = result.available ? t("Version {version} is available", { version: result.latest }) : t("You have the latest version");
+      $("install-update").hidden = !result.available;
+    } catch (_) {
+      $("update-status").textContent = t("Could not reach the update server. Check your connection.");
+    }
+    $("check-updates").disabled = false;
+  });
+  $("install-update").addEventListener("click", async () => {
+    $("install-update").disabled = true;
+    $("update-status").textContent = t("Downloading the update…");
+    const result = await Native.call("installUpdate");
+    if (result.ok) return;
+    $("install-update").disabled = false;
+    $("update-status").textContent = result.reason === "move" ? t("Move VS Gammon to your Applications folder, then try again.") : t("The update could not be installed. Your current version is unchanged.");
+  });
+  if (location.hash === "#updates") $("check-updates").click();
+}

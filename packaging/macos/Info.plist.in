@@ -13,6 +13,7 @@
   <key>LSMinimumSystemVersion</key><string>@MIN_MACOS@</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.board-games</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>VSGUpdatePublicKey</key><string>@UPDATE_KEY@</string>
   <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
   <key>NSDownloadsFolderUsageDescription</key><string>VS Gammon reads new match files from folders you choose to watch. It never changes them.</string>
   <key>NSDesktopFolderUsageDescription</key><string>VS Gammon reads new match files from folders you choose to watch. It never changes them.</string>

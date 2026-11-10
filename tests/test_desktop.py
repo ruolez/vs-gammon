@@ -51,6 +51,7 @@ class DesktopEnvironment(unittest.TestCase):
                 "GNUBG_DATADIR": f"{ROOT}/engine/share",
                 "GNUBG_PKGDATADIR": f"{ROOT}/engine/share/gnubg",
                 "PYTHONHOME": f"{ROOT}/python",
+                "VSG_DOCKER_SOURCE": f"{HOME}/vs-gammon",
             },
         )
 

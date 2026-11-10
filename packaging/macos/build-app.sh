@@ -17,7 +17,8 @@ mkdir -p "$APP/Contents/MacOS" "$RES/engine/bin" "$RES/engine/share/gnubg"
 swiftc -O -swift-version 5 -target "arm64-apple-macos$MIN_MACOS" \
   -o "$APP/Contents/MacOS/VS Gammon" "$HERE"/shell/*.swift
 
-sed -e "s/@VERSION@/$VERSION/g" -e "s/@MIN_MACOS@/$MIN_MACOS/g" "$HERE/Info.plist.in" > "$APP/Contents/Info.plist"
+UPDATE_KEY="$(tr -d '[:space:]' < "$HERE/release-public-key.txt" 2>/dev/null || true)"
+sed -e "s/@VERSION@/$VERSION/g" -e "s/@MIN_MACOS@/$MIN_MACOS/g" -e "s|@UPDATE_KEY@|$UPDATE_KEY|g" "$HERE/Info.plist.in" > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 

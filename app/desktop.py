@@ -33,6 +33,7 @@ def desktop_environment(home, root):
         "GNUBG_DATADIR": os.path.join(root, "engine", "share"),
         "GNUBG_PKGDATADIR": os.path.join(root, "engine", "share", "gnubg"),
         "PYTHONHOME": os.path.join(root, "python"),
+        "VSG_DOCKER_SOURCE": os.path.join(home, "vs-gammon"),
     }
 
 

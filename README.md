@@ -2,7 +2,17 @@
 
 A local web app that imports backgammon match files (`.mat`, the Jellyfish format exported by BackgammonGalaxy and others) and analyses every checker play and cube decision with **GNU Backgammon 1.08**. The engine runs inside the Docker container. The app lists errors and blunders, filtered by thresholds you set, and exports the positions you pick as eXtreme Gammon **`.xgp`** files in one ZIP.
 
-## Install (macOS)
+## Mac app (no Docker)
+
+`VS Gammon.app` is self-contained: the engine, Python and the interface are all inside it (Apple Silicon, macOS 13 or later). Open the `.dmg` and drag the app to Applications. It isn't notarized by Apple, so the first launch needs one approval: try to open it, then go to System Settings › Privacy & Security and choose **Open Anyway**.
+
+Your matches live in `~/Library/Application Support/VS Gammon`, so updating or replacing the app keeps them. If the Docker version is installed, the first launch offers to copy its matches and practice history; the originals stay as they are. Settings › Updates installs new versions. Closing the window quits the app; watched folders are checked again on the next launch.
+
+To build it: `packaging/macos/build-deps.sh`, `packaging/macos/build-gnubg.sh`, then `packaging/macos/build-app.sh` writes `dist/VS Gammon.app`. `packaging/macos/release.sh` also makes the `.dmg` and the signed update zip.
+
+GNU Backgammon is free software under the GPL version 3; its source is at <https://ftp.gnu.org/gnu/gnubg/>.
+
+## Install with Docker (macOS)
 
 Needs Docker Desktop (the installer offers to install it with Homebrew) and git (the Command Line Tools). Open Terminal and run:
 

@@ -160,13 +160,31 @@ function renderRecent(d) {
   }).join("");
 }
 
-function renderEmpty() {
+async function renderEmpty() {
   $("dash").hidden = true;
   $("cta").hidden = true;
   $("greeting").textContent = t("Welcome to VS Gammon");
   $("greeting-sub").textContent = t("Turn your own matches into training.");
   const box = $("dash-empty");
   box.hidden = false;
+  const { docker_data: canBringOver } = await api.get("/api/shell");
+  if (canBringOver) {
+    box.innerHTML = `<section class="panel"><div class="empty tall">${icon("folder")}
+      <strong>${t("Your matches are ready to move")}</strong>
+      <p>${t("VS Gammon found your matches and practice history from the Docker version. They are copied here and the originals stay as they are.")}</p>
+      <div class="row-gap top"><button class="btn" id="bring-over">${t("Bring them over")}</button><a class="btn secondary" href="/matches">${t("Start fresh")}</a></div></div></section>`;
+    $("bring-over").addEventListener("click", async (ev) => {
+      ev.target.disabled = true;
+      try {
+        await api.post("/api/import-docker");
+        location.reload();
+      } catch (err) {
+        ev.target.disabled = false;
+        toast(err.message, true);
+      }
+    });
+    return;
+  }
   box.innerHTML = `<section class="panel"><div class="empty tall">${icon("upload")}
     <strong>${t("Import your first match")}</strong>
     <p>${t("Drop a .mat file on the Matches page, or watch your Downloads folder so new matches are picked up by themselves. Every move is analysed by GNU Backgammon.")}</p>

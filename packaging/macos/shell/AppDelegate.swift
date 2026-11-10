@@ -8,6 +8,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var mainMenu: NSMenu!
     private var serverReady = false
     private var selfTest: SelfTest?
+    private var quittingForUpdate = false
+    let updater = Updater()
     private var pendingFiles: [URL] = []
     private var strings: [String: String] = UserDefaults.standard.dictionary(forKey: "strings") as? [String: String] ?? [:]
 
@@ -150,6 +152,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
     }
 
+    func installUpdate(reply: @escaping (Any?, String?) -> Void) {
+        updater.install { [weak self] result in
+            switch result {
+            case .success:
+                reply(["ok": true], nil)
+                self?.quittingForUpdate = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { NSApp.terminate(nil) }
+            case .failure(Updater.Failure.moveToApplications):
+                reply(["ok": false, "reason": "move"], nil)
+            case .failure:
+                reply(["ok": false, "reason": "failed"], nil)
+            }
+        }
+    }
+
     // MARK: Quitting
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -163,7 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard serverReady else { return .terminateNow }
+        guard serverReady, !quittingForUpdate else { return .terminateNow }
         URLSession.shared.dataTask(with: serverBase.appendingPathComponent("api/matches")) { [weak self] data, _, _ in
             let matches = (data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any])?["matches"] as? [[String: Any]] ?? []
             let busy = matches.contains { ["analyzing", "queued"].contains($0["status"] as? String ?? "") }

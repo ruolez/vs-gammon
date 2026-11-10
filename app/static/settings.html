@@ -21,7 +21,7 @@
     </header>
     <div class="settings">
       <nav aria-label="Settings sections">
-        <a href="#appearance">Appearance</a><a href="#player">Default player</a><a href="#grading">Error grading</a><a href="#engine">Analysis engine</a><a href="#folders">Watched folders</a>
+        <a href="#appearance">Appearance</a><a href="#player">Default player</a><a href="#grading">Error grading</a><a href="#engine">Analysis engine</a><a href="#folders">Watched folders</a><a href="#updates" id="updates-link" hidden>Updates</a>
       </nav>
       <div>
         <section class="panel panel-pad" id="appearance">
@@ -100,6 +100,17 @@
               <select id="watch-interval" aria-label="Check for new files every"><option value="15">15 seconds</option><option value="30">30 seconds</option><option value="60">1 minute</option><option value="300">5 minutes</option></select>
               <button class="btn secondary" id="scan-now">Check now</button>
               <button class="btn" id="add-folder">Add folder</button>
+            </div>
+          </div>
+        </section>
+        <section class="panel panel-pad" id="updates" hidden>
+          <h2>Updates</h2>
+          <p class="desc">New versions keep all your matches and practice history.</p>
+          <div class="setting-row first">
+            <div class="text"><strong id="app-version">VS Gammon</strong><span id="update-status">Check whether a newer version is out</span></div>
+            <div class="row-gap">
+              <button class="btn secondary" id="check-updates">Check for updates</button>
+              <button class="btn" id="install-update" hidden>Update and restart</button>
             </div>
           </div>
         </section>

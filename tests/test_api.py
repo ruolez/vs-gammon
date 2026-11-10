@@ -394,5 +394,16 @@ class Dashboard(ApiTestCase):
         self.assertEqual(self.client.get("/api/dashboard").get_json(), {"player": None, "matches": [], "empty": True})
 
 
+
+
+class ImportDocker(ApiTestCase):
+    def test_shell_offers_nothing_without_a_docker_install(self):
+        self.assertEqual(self.client.get("/api/shell").get_json()["docker_data"], False)
+
+    def test_import_is_refused_when_there_is_nothing_to_bring_over(self):
+        response = self.client.post("/api/import-docker")
+        self.assertEqual((response.status_code, response.get_json()["error"]), (400, "there is nothing to bring over"))
+
+
 if __name__ == "__main__":
     unittest.main()
