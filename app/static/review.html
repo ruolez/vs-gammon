@@ -7,9 +7,9 @@
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/css/style.css">
-  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"");var ts=parseInt(localStorage.getItem("ga-text"),10);if(ts)d.style.fontSize=ts+"%"}catch(e){}</script>
+  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb==="collapsed"?"collapsed":"";var ts=parseInt(localStorage.getItem("ga-text"),10);if(ts)d.style.fontSize=ts+"%"}catch(e){}</script>
 </head>
-<body>
+<body data-page="review">
 <div class="app">
   <aside class="sidebar" id="sidebar" data-active="/review"></aside>
   <main class="main">
@@ -35,6 +35,7 @@
       <div class="field"><label for="f-severity">Show</label><select id="f-severity"><option value="doubtful">Doubtful or worse</option><option value="bad">Bad or worse</option><option value="very_bad">Very bad only</option><option value="all">Every decision</option><option value="custom">Error at least…</option></select></div>
       <div class="field" id="custom-field" hidden><label for="f-custom">Minimum loss</label><input type="number" id="f-custom" step="0.005" min="0" value="0.05"></div>
       <div class="field"><label for="f-game">Game</label><select id="f-game"><option value="">All games</option></select></div>
+      <div class="field"><label for="f-tag">Tag</label><select id="f-tag"><option value="">Any or none</option></select></div>
       <label class="check"><input type="checkbox" id="f-forced"> Forced moves</label>
     </form>
     <div class="review">
@@ -42,6 +43,7 @@
         <div class="list-head">
           <label class="check tight"><input type="checkbox" id="select-all"><span class="sr-only">Select all shown</span></label>
           <span class="count-text" id="result-count"></span>
+          <button type="button" class="btn ghost sm" id="tag-selected" aria-haspopup="dialog" aria-expanded="false" disabled title="Tag the selected positions">Tag</button>
           <span class="spacer"></span>
           <span class="row-gap small muted" title="Arrow keys move, Space selects"><span class="kbd plain">↑</span><span class="kbd plain">↓</span><span class="kbd plain">Space</span></span>
         </div>
@@ -58,6 +60,7 @@
 <script src="/static/js/core.js"></script>
 <script src="/static/js/moves.js"></script>
 <script src="/static/js/board.js"></script>
+<script src="/static/js/tags.js"></script>
 <script src="/static/js/review.js"></script>
 </body>
 </html>

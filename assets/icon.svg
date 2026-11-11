@@ -4,8 +4,29 @@
       <stop offset="0" stop-color="#3b7cf0"/>
       <stop offset="1" stop-color="#1f56c9"/>
     </linearGradient>
+    <linearGradient id="checker" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e3e9f4"/>
+    </linearGradient>
+    <clipPath id="tile"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
   </defs>
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
-  <rect x="262" y="262" width="500" height="500" rx="118" fill="#f8fafc"/>
-  <text x="512" y="604" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="260" font-weight="800" fill="#1e2a46">64</text>
+  <g clip-path="url(#tile)">
+    <path d="M100.0 100 L237.3 100 L168.7 390 Z" fill="#ffffff" fill-opacity="0.22"/>
+    <path d="M100.0 924 L237.3 924 L168.7 634 Z" fill="#0b1b4a" fill-opacity="0.2"/>
+    <path d="M237.3 100 L374.7 100 L306.0 390 Z" fill="#0b1b4a" fill-opacity="0.2"/>
+    <path d="M237.3 924 L374.7 924 L306.0 634 Z" fill="#ffffff" fill-opacity="0.22"/>
+    <path d="M374.7 100 L512.0 100 L443.3 390 Z" fill="#ffffff" fill-opacity="0.22"/>
+    <path d="M374.7 924 L512.0 924 L443.3 634 Z" fill="#0b1b4a" fill-opacity="0.2"/>
+    <path d="M512.0 100 L649.3 100 L580.7 390 Z" fill="#0b1b4a" fill-opacity="0.2"/>
+    <path d="M512.0 924 L649.3 924 L580.7 634 Z" fill="#ffffff" fill-opacity="0.22"/>
+    <path d="M649.3 100 L786.7 100 L718.0 390 Z" fill="#ffffff" fill-opacity="0.22"/>
+    <path d="M649.3 924 L786.7 924 L718.0 634 Z" fill="#0b1b4a" fill-opacity="0.2"/>
+    <path d="M786.7 100 L924.0 100 L855.3 390 Z" fill="#0b1b4a" fill-opacity="0.2"/>
+    <path d="M786.7 924 L924.0 924 L855.3 634 Z" fill="#ffffff" fill-opacity="0.22"/>
+  </g>
+  <circle cx="512" cy="530" r="232" fill="#0b1b4a" fill-opacity="0.28"/>
+  <circle cx="512" cy="512" r="232" fill="url(#checker)"/>
+  <circle cx="512" cy="512" r="192" fill="none" stroke="#c3cee3" stroke-width="12"/>
+  <text x="512" y="584" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="196" font-weight="800" letter-spacing="-6" fill="#1e2a46">VS</text>
 </svg>

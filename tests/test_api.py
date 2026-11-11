@@ -324,6 +324,107 @@ class Reanalysis(ApiTestCase):
         self.assertEqual((after, len(attempts)), (before, 1))
 
 
+class Tags(ApiTestCase):
+    def create(self, name, color="blue"):
+        return self.client.post("/api/tags", json={"name": name, "color": color})
+
+    def tags(self):
+        return [(t["name"], t["color"], t["count"]) for t in self.client.get("/api/tags").get_json()["tags"]]
+
+    def decision_ids(self, **params):
+        query = "&".join(f"{k}={v}" for k, v in {"include_forced": 1, **params}.items())
+        return [d["id"] for d in self.client.get(f"/api/decisions?{query}").get_json()["decisions"]]
+
+    def tag(self, tag_id, add=(), remove=()):
+        return self.client.post(f"/api/tags/{tag_id}/decisions", json={"add": list(add), "remove": list(remove)})
+
+    def test_create_lists_tags_by_name_with_counts(self):
+        self.create("Prime vs prime", "green")
+        self.create("bear-in", "red")
+        self.assertEqual(self.tags(), [("bear-in", "red", 0), ("Prime vs prime", "green", 0)])
+
+    def test_tag_names_are_unique_ignoring_case_and_validated(self):
+        self.create("Blitz")
+        self.assertEqual(
+            [(r.status_code, r.get_json()["error"]) for r in
+             (self.create("blitz"), self.create("   "), self.create("x" * 41), self.create("Ok", "neon"))],
+            [(400, "a tag named 'blitz' already exists"), (400, "a tag needs a name"),
+             (400, "tag names are at most 40 characters"), (400, "unknown tag colour")],
+        )
+
+    def test_tagging_shows_on_decisions_and_filters_them(self):
+        self.analysed_match()
+        ids = self.decision_ids()
+        blitz = self.create("Blitz").get_json()["tag"]["id"]
+        prime = self.create("Prime").get_json()["tag"]["id"]
+        self.tag(blitz, add=ids[:3])
+        self.tag(prime, add=ids[2:4])
+        self.tag(blitz, remove=[ids[0]])
+        tagged = {d["id"]: d["tags"] for d in self.client.get("/api/decisions?include_forced=1").get_json()["decisions"]}
+        self.assertEqual(
+            ([tagged[i] for i in ids[:5]], self.decision_ids(tag=blitz), self.decision_ids(tag=f"{blitz},{prime}"),
+             self.decision_ids(tag="none"), self.tags()),
+            ([[], [blitz], [blitz, prime], [prime], []], ids[1:3], ids[1:4], [ids[0]] + ids[4:],
+             [("Blitz", "blue", 2), ("Prime", "blue", 2)]),
+        )
+
+    def test_rename_and_recolour(self):
+        tag_id = self.create("Blitz").get_json()["tag"]["id"]
+        response = self.client.patch(f"/api/tags/{tag_id}", json={"name": "Blitzes", "color": "purple"})
+        self.assertEqual((response.status_code, self.tags()), (200, [("Blitzes", "purple", 0)]))
+
+    def test_delete_removes_the_tag_but_keeps_positions(self):
+        self.analysed_match()
+        ids = self.decision_ids()
+        tag_id = self.create("Blitz").get_json()["tag"]["id"]
+        self.tag(tag_id, add=ids)
+        self.client.delete(f"/api/tags/{tag_id}")
+        self.assertEqual((self.tags(), self.decision_ids()), ([], ids))
+
+    def test_merge_moves_positions_into_the_target_without_duplicates(self):
+        self.analysed_match()
+        ids = self.decision_ids()
+        source = self.create("Blitz").get_json()["tag"]["id"]
+        target = self.create("Attack").get_json()["tag"]["id"]
+        self.tag(source, add=ids[:3])
+        self.tag(target, add=ids[2:5])
+        response = self.client.post(f"/api/tags/{source}/merge", json={"into": target})
+        self.assertEqual((response.status_code, self.tags(), self.decision_ids(tag=target)),
+                         (200, [("Attack", "blue", 5)], ids[:5]))
+
+    def test_merging_a_tag_into_itself_is_refused(self):
+        tag_id = self.create("Blitz").get_json()["tag"]["id"]
+        response = self.client.post(f"/api/tags/{tag_id}/merge", json={"into": tag_id})
+        self.assertEqual((response.status_code, response.get_json()["error"]), (400, "choose another tag to merge into"))
+
+    def test_unknown_tag_or_decision_is_404(self):
+        self.analysed_match()
+        tag_id = self.create("Blitz").get_json()["tag"]["id"]
+        self.assertEqual(
+            [r.status_code for r in (self.client.patch("/api/tags/99", json={"name": "x"}), self.client.delete("/api/tags/99"),
+                                     self.tag(99, add=self.decision_ids()[:1]), self.tag(tag_id, add=[9999]))],
+            [404, 404, 404, 404],
+        )
+
+    def test_tags_survive_reanalysis_and_go_with_a_deleted_match(self):
+        match_id = self.analysed_match()
+        tag_id = self.create("Blitz").get_json()["tag"]["id"]
+        self.tag(tag_id, add=self.decision_ids()[:2])
+        self.client.post(f"/api/matches/{match_id}/reanalyze")
+        jobs.process_next(self.conn, self.data_dir, analyse=fake_analyse)
+        kept = self.tags()
+        self.client.delete(f"/api/matches/{match_id}")
+        self.assertEqual((kept, self.tags()), ([("Blitz", "blue", 2)], [("Blitz", "blue", 0)]))
+
+    def test_practice_queue_by_tag_includes_good_moves(self):
+        self.analysed_match()
+        good = [d["id"] for d in self.client.get("/api/decisions?min_error=0").get_json()["decisions"] if d["error"] == 0]
+        tag_id = self.create("Quiz").get_json()["tag"]["id"]
+        self.tag(tag_id, add=good[:2])
+        items = self.client.get(f"/api/practice/queue?tag={tag_id}&mode=all").get_json()["items"]
+        self.assertEqual(sorted(i["id"] for i in items), sorted(good[:2]))
+
+
 class Folders(ApiTestCase):
     def test_browse_home_and_subfolders(self):
         self.assertEqual(

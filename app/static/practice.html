@@ -7,7 +7,7 @@
   <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <link rel="stylesheet" href="/static/css/style.css">
-  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb!==null?sb:(/^\/(review|practice)/.test(location.pathname)?"collapsed":"");var ts=parseInt(localStorage.getItem("ga-text"),10);if(ts)d.style.fontSize=ts+"%"}catch(e){}</script>
+  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb==="collapsed"?"collapsed":"";var ts=parseInt(localStorage.getItem("ga-text"),10);if(ts)d.style.fontSize=ts+"%"}catch(e){}</script>
 </head>
 <body>
 <div class="app">
@@ -30,8 +30,10 @@
       <div class="field"><label for="s-mode">Which</label><select id="s-mode"><option value="due">Due: missed first, then new</option><option value="misses">Only ones I missed</option><option value="new">Only new ones</option><option value="all">Everything, solved included</option></select></div>
       <div class="field"><label for="s-match">Match</label><select id="s-match"><option value="">All matches</option></select></div>
       <label class="check"><input type="checkbox" id="s-shuffle"> Shuffle</label>
+      <p class="set-note small muted" id="set-note" hidden>Practising a tag uses every position with it, whatever the player, match or error. Type, Which and Shuffle still apply.</p>
     </form>
     <div class="session-bar">
+      <div class="field set-field"><label for="s-set" class="sr-only">Practise</label><select id="s-set" title="Practise all your positions or one tag"><option value="">All positions</option></select></div>
       <div class="session-summary" id="summary"></div>
       <div class="progress" role="progressbar" aria-label="Session progress" id="progressbar"><span id="progress" style="width:0%"></span></div>
       <span class="count-text" id="progress-text">0 / 0</span>
@@ -40,7 +42,11 @@
       <section class="panel stage" id="stage">
         <div class="prompt" id="prompt">Loading…</div>
         <div class="position-meta" id="facts"></div>
-        <div class="stage-board" id="board"></div>
+        <div class="board-nav">
+          <button type="button" class="nav-arrow" id="prev-pos" aria-label="Previous position" title="Previous position (←)"></button>
+          <div class="stage-board" id="board"></div>
+          <button type="button" class="nav-arrow" id="next-pos" aria-label="Next position" title="Next position (→)"></button>
+        </div>
         <div class="answer-bar" id="bar"></div>
       </section>
       <aside class="side">
@@ -56,6 +62,7 @@
 <script src="/static/js/core.js"></script>
 <script src="/static/js/moves.js"></script>
 <script src="/static/js/board.js"></script>
+<script src="/static/js/tags.js"></script>
 <script src="/static/js/practice.js"></script>
 </body>
 </html>

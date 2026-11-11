@@ -4,7 +4,7 @@ const SEVERITY_TEXT = { doubtful: t("Errors"), bad: t("Bad or worse"), very_bad:
 const KIND_TEXT = { "": t("Checker and cube"), checker: t("Checker plays"), cube: t("Cube decisions") };
 
 const state = {
-  thresholds: null, matches: [], queue: [], index: 0,
+  thresholds: null, matches: [], queue: [], index: 0, results: [], cache: new Map(),
   session: { answered: 0, correct: 0, requeued: new Set() },
   d: null, phase: "idle", start: null, frame: null, remaining: [], history: [], finals: null, selected: null,
   result: null, arrows: new Set(Prefs.get("practice.arrows", ["yours", "best"])), candidate: null,
@@ -18,7 +18,7 @@ function savePrefs() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       player: $("s-player").value, severity: $("s-severity").value, kind: $("s-kind").value,
-      mode: $("s-mode").value, match: $("s-match").value, shuffle: $("s-shuffle").checked,
+      mode: $("s-mode").value, match: $("s-match").value, shuffle: $("s-shuffle").checked, set: $("s-set").value,
     }));
   } catch (_) {}
 }
@@ -29,11 +29,25 @@ function minError() {
 }
 
 function queryString() {
-  const q = new URLSearchParams({ min_error: minError(), mode: $("s-mode").value });
-  if ($("s-player").value) q.set("player_name", $("s-player").value);
+  const set = $("s-set").value;
+  const q = new URLSearchParams({ min_error: set ? 0 : minError(), mode: $("s-mode").value });
+  if (set) q.set("tag", set);
+  if (!set && $("s-player").value) q.set("player_name", $("s-player").value);
+  if (!set && $("s-match").value) q.set("match_id", $("s-match").value);
   if ($("s-kind").value) q.set("kind", $("s-kind").value);
-  if ($("s-match").value) q.set("match_id", $("s-match").value);
   return q;
+}
+
+function fillSets(value) {
+  $("s-set").innerHTML = `<option value="">${t("All positions")}</option>`
+    + Tags.list.map((tag) => `<option value="${tag.id}">${esc(tag.name)} (${tag.count})</option>`).join("");
+  $("s-set").value = [...$("s-set").options].some((o) => o.value === value) ? value : "";
+}
+
+function syncSetControls() {
+  const tagged = Boolean($("s-set").value);
+  ["s-player", "s-severity", "s-match"].forEach((id) => ($(id).disabled = tagged));
+  $("set-note").hidden = !tagged;
 }
 
 function shuffle(items) {
@@ -47,7 +61,8 @@ function shuffle(items) {
 
 function renderSummary() {
   const match = state.matches.find((m) => String(m.id) === $("s-match").value);
-  const chips = [
+  const tag = Tags.byId(Number($("s-set").value));
+  const chips = tag ? [tag.name, KIND_TEXT[$("s-kind").value], MODE_TEXT[$("s-mode").value]] : [
     $("s-player").value || t("Both players"),
     SEVERITY_TEXT[$("s-severity").value],
     KIND_TEXT[$("s-kind").value],
@@ -70,7 +85,32 @@ function renderProgress() {
   $("progress").style.width = total ? `${(100 * done) / total}%` : "0%";
   $("progressbar").setAttribute("aria-valuenow", String(done));
   $("progressbar").setAttribute("aria-valuemax", String(total));
-  $("progress-text").textContent = t("{done} / {total} this session", { done, total });
+  $("progress-text").textContent = total
+    ? t("{n} of {total} · {done} answered", { n: Math.min(state.index + 1, total), total, done })
+    : t("{done} / {total} this session", { done, total });
+}
+
+function renderNav() {
+  const empty = !state.queue.length || state.phase === "idle";
+  $("prev-pos").disabled = empty || (state.index === 0 && state.phase !== "done");
+  $("next-pos").disabled = empty || state.phase === "done";
+}
+
+async function go(delta) {
+  if (!state.queue.length || state.phase === "idle") return;
+  if (state.phase === "done") {
+    if (delta < 0) await showPosition().catch((err) => toast(err.message, true));
+    return;
+  }
+  const index = state.index + delta;
+  if (index < 0) return;
+  if (index >= state.queue.length) return showDone();
+  state.index = index;
+  try {
+    await showPosition();
+  } catch (err) {
+    toast(err.message, true);
+  }
 }
 
 async function startSession() {
@@ -82,7 +122,10 @@ async function startSession() {
     const ids = items.map((i) => i.id);
     state.queue = $("s-shuffle").checked ? shuffle(ids) : ids;
     state.index = 0;
+    state.results = [];
+    state.cache.clear();
     state.session = { answered: 0, correct: 0, requeued: new Set() };
+    state.phase = "loading";
     renderProgress();
     if (!state.queue.length) return showEmpty();
     await showPosition();
@@ -101,14 +144,20 @@ function clearStage(prompt) {
 
 function showEmpty() {
   state.phase = "idle";
+  renderNav();
   clearStage(t("Nothing due here"));
-  $("board").innerHTML = `<div class="empty tall">${icon("check")}<strong>${t("You are all caught up")}</strong><p>${t('No positions match these options. Choose "Everything" to revisit solved ones, lower the error level, or import another match.')}</p><button class="btn secondary" id="open-options">${t("Change options")}</button></div>`;
+  const why = $("s-set").value
+    ? t('No positions with this tag match these options. Choose "Everything" to revisit solved ones, or tag more positions on the Positions page.')
+    : t('No positions match these options. Choose "Everything" to revisit solved ones, lower the error level, or import another match.');
+  $("board").innerHTML = `<div class="empty tall">${icon("check")}<strong>${t("You are all caught up")}</strong><p>${why}</p><button class="btn secondary" id="open-options">${t("Change options")}</button></div>`;
   $("open-options").addEventListener("click", () => toggleOptions(true));
   $("panel").innerHTML = `<h2>${t("How practice works")}</h2><div class="tips"><div>${t("Every error you make in an analysed match becomes a practice position.")}</div><div>${t("Answer correctly and it counts as solved. Miss it and it comes back first next time.")}</div></div>`;
 }
 
 function showDone() {
   state.phase = "done";
+  Tags.closePicker();
+  renderNav();
   const { answered, correct } = state.session;
   const pct = answered ? Math.round((100 * correct) / answered) : 0;
   clearStage(t("Session complete"));
@@ -146,15 +195,22 @@ function renderContext() {
     `<span class="chip">${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })}</span>`,
     `<span class="chip">${scoreText(d)}</span>`,
     `<span class="chip">${cubeText(d)}</span>`,
+    `<span class="tag-line" id="tag-line"></span>`,
   ].join("");
+  Tags.mountLine($("tag-line"), d, renderSummary);
 }
 
 async function showPosition() {
   const id = state.queue[state.index];
-  const { decision } = await api.get(`/api/decisions/${id}`);
+  if (!state.cache.has(id)) state.cache.set(id, (await api.get(`/api/decisions/${id}`)).decision);
+  const decision = state.cache.get(id);
+  const saved = state.results[state.index];
+  Tags.closePicker();
   Object.assign(state, { d: decision, phase: "answer", result: null, candidate: null, selected: null, history: [] });
   $("bar").hidden = false;
   renderContext();
+  renderNav();
+  renderProgress();
   if (decision.kind === "checker") {
     if (!decision.legal) {
       $("board").innerHTML = `<div class="empty">${icon("alert")}<strong>${t("Move list missing")}</strong><p>${t("This position was analysed before practice existed. Re-analyse its match on the Matches page.")}</p></div>`;
@@ -164,6 +220,10 @@ async function showPosition() {
     state.frame = state.start;
     state.remaining = Moves.diceList(decision.dice);
     state.finals = Moves.finalPositions(state.start, decision.legal);
+  }
+  if (saved) {
+    state.result = saved;
+    return renderResult();
   }
   renderAnswerPhase();
 }
@@ -296,6 +356,7 @@ async function sendAnswer(body, yourSteps) {
   try {
     const result = await api.post(`/api/practice/${state.d.id}/answer`, body);
     state.result = { ...result, yourSteps, revealed: false };
+    state.results[state.index] = state.result;
     state.d.practice = result.history;
     state.session.answered += 1;
     if (result.correct) state.session.correct += 1;
@@ -313,6 +374,7 @@ async function reveal() {
     const { history } = await api.post(`/api/practice/${state.d.id}/reveal`);
     state.d.practice = history;
     state.result = { revealed: true, correct: false };
+    state.results[state.index] = state.result;
     state.session.answered += 1;
     requeue();
     renderResult();
@@ -445,15 +507,7 @@ function retry() {
   renderAnswerPhase();
 }
 
-async function next() {
-  if (state.index + 1 >= state.queue.length) return showDone();
-  state.index += 1;
-  try {
-    await showPosition();
-  } catch (err) {
-    toast(err.message, true);
-  }
-}
+const next = () => go(1);
 
 function toggleOptions(open) {
   const panel = $("options");
@@ -463,7 +517,12 @@ function toggleOptions(open) {
 }
 
 function onKey(ev) {
-  if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName) || Tags.picker || document.querySelector("dialog[open]")) return;
+  if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+    ev.preventDefault();
+    go(ev.key === "ArrowLeft" ? -1 : 1);
+    return;
+  }
   const key = ev.key.toLowerCase();
   if (key === "tab") state.keyboard = true;
   const focused = document.activeElement.closest && document.activeElement.closest("[data-point]");
@@ -504,6 +563,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     state.thresholds = settings.thresholds;
     state.matches = matches.filter((m) => m.status === "done");
     const prefs = loadPrefs();
+    await Tags.load().catch((err) => toast(err.message, true));
+    fillSets(prefs.set || "");
     $("s-player").innerHTML = `<option value="">${t("Both players")}</option>` + players.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join("");
     $("s-player").value = prefs.player !== undefined ? prefs.player : (settings.me || "");
     $("s-match").innerHTML = `<option value="">${t("All matches")}</option>` + state.matches.map((m) =>
@@ -522,12 +583,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (wanted) $("s-match").value = wanted;
     if (params.get("kind")) $("s-kind").value = params.get("kind");
     if (params.get("severity")) $("s-severity").value = params.get("severity");
+    if (params.has("tag") || params.has("match_id")) fillSets(params.get("tag") || "");
+    syncSetControls();
     if ([...params.keys()].length) history.replaceState(null, "", "/practice");
   } catch (err) {
     toast(err.message, true);
     return;
   }
   ["s-player", "s-severity", "s-kind", "s-mode", "s-match", "s-shuffle"].forEach((id) => $(id).addEventListener("change", startSession));
+  $("s-set").addEventListener("change", () => { syncSetControls(); startSession(); });
+  $("prev-pos").innerHTML = icon("back");
+  $("next-pos").innerHTML = icon("forward");
+  $("prev-pos").addEventListener("click", () => go(-1));
+  $("next-pos").addEventListener("click", () => go(1));
+  document.addEventListener("tagschange", () => {
+    const before = $("s-set").value;
+    fillSets(before);
+    if ($("s-set").value !== before) syncSetControls();
+    renderSummary();
+    if (state.d && $("tag-line")) Tags.mountLine($("tag-line"), state.d, renderSummary);
+  });
   $("s-player").addEventListener("change", () => loadStreak($("s-player").value));
   $("options").addEventListener("submit", (ev) => ev.preventDefault());
   $("options-btn").addEventListener("click", () => toggleOptions());

@@ -1,9 +1,13 @@
+const PAGE = document.body.dataset.page === "positions" ? "positions" : "review";
+
 const state = {
   matches: [], picked: new Set(), thresholds: null, decisions: [], selected: new Set(), current: null, focus: null,
   arrows: new Set(Prefs.get("review.arrows", ["played", "best"])), candidate: null, detail: null,
 };
 
-const FILTER_DEFAULTS = { matches: [], player: "", kind: "", severity: "doubtful", custom: "0.05", game: "", forced: false };
+const FILTER_DEFAULTS = {
+  matches: [], player: "", kind: "", severity: PAGE === "positions" ? "all" : "doubtful", custom: "0.05", game: "", forced: false, tag: "",
+};
 
 function readUrl() {
   const p = new URLSearchParams(location.search);
@@ -17,6 +21,7 @@ function readUrl() {
   if (p.has("custom")) found.custom = p.get("custom");
   if (p.has("game")) found.game = p.get("game");
   if (p.has("forced")) found.forced = p.get("forced") === "1";
+  if (p.has("tag")) found.tag = p.get("tag");
   return found;
 }
 
@@ -28,7 +33,7 @@ function startingFilters(defaultPlayer) {
     if (state.focus && !("player" in fromUrl)) linked.player = "";
     return linked;
   }
-  const saved = Prefs.get("review.filters", {});
+  const saved = Prefs.get(`${PAGE}.filters`, {});
   if (saved.match && !saved.matches) saved.matches = [saved.match];
   delete saved.match;
   return { ...base, ...saved };
@@ -44,13 +49,13 @@ function rememberFilters(f) {
     const match = onlyMatch(f);
     player = match ? `name:${player === "1" ? match.player1 : match.player2}` : "";
   }
-  Prefs.set("review.filters", { ...f, player });
+  Prefs.set(`${PAGE}.filters`, { ...f, player });
 }
 
 function currentFilters() {
   return {
     matches: state.matches.filter((m) => state.picked.has(String(m.id))).map((m) => String(m.id)), player: $("f-player").value, kind: $("f-kind").value, severity: $("f-severity").value,
-    custom: $("f-custom").value, game: $("f-game").value, forced: $("f-forced").checked,
+    custom: $("f-custom").value, game: $("f-game").value, forced: $("f-forced").checked, tag: $("f-tag").value,
   };
 }
 
@@ -60,11 +65,12 @@ function writeUrl(f) {
   if (f.player.startsWith("name:")) p.set("player_name", f.player.slice(5));
   else if (f.player) p.set("player", f.player);
   if (f.kind) p.set("kind", f.kind);
-  if (f.severity !== "doubtful") p.set("min_error", f.severity);
+  if (f.severity !== FILTER_DEFAULTS.severity) p.set("min_error", f.severity);
   if (f.severity === "custom") p.set("custom", f.custom);
   if (f.game) p.set("game", f.game);
   if (f.forced) p.set("forced", "1");
-  history.replaceState(null, "", `/review${p.toString() ? `?${p}` : ""}`);
+  if (f.tag) p.set("tag", f.tag);
+  history.replaceState(null, "", `/${PAGE}${p.toString() ? `?${p}` : ""}`);
 }
 
 function minError(f) {
@@ -114,6 +120,7 @@ async function loadDecisions() {
   if (f.kind) q.set("kind", f.kind);
   if (f.game && onlyMatch(f)) q.set("game", f.game);
   if (f.forced) q.set("include_forced", "1");
+  if (f.tag) q.set("tag", f.tag);
   try {
     const { decisions } = await api.get(`/api/decisions?${q}`);
     state.decisions = decisions;
@@ -138,21 +145,52 @@ function rowWho(d) {
   return `${d.kind === "checker" ? diceSvg(d.dice) : icon("cube")}<span>${esc(playerName(d, d.player))}</span>`;
 }
 
+function rowTags(d) {
+  return d.tags && d.tags.length ? `<span class="row-tags">${Tags.chips(d.tags)}</span>` : "";
+}
+
+function fillTagFilter(value) {
+  const options = Tags.list.map((tag) => `<option value="${tag.id}">${esc(tag.name)} (${tag.count})</option>`).join("");
+  $("f-tag").innerHTML = `<option value="">${t("Any or none")}</option><option value="none">${t("Untagged")}</option>${options}`;
+  $("f-tag").value = [...$("f-tag").options].some((o) => o.value === value) ? value : "";
+}
+
+function selectedDecisions() {
+  return state.decisions.filter((d) => state.selected.has(d.id));
+}
+
+function tagsChanged() {
+  const before = $("f-tag").value;
+  fillTagFilter(before);
+  if ($("f-tag").value !== before) return loadDecisions();
+  renderRows();
+  const d = state.decisions.find((x) => x.id === state.current);
+  if (d) renderTagLine(d);
+}
+
+function renderTagLine(d) {
+  if ($("tag-line")) Tags.mountLine($("tag-line"), d, () => renderRows());
+}
+
 function renderRows() {
   const all = state.picked.size !== 1;
   $("rows").innerHTML = state.decisions.map((d) => `
     <div class="drow ${d.id === state.current ? "current" : ""}" data-id="${d.id}" role="button" tabindex="-1">
       <input type="checkbox" data-select="${d.id}" ${state.selected.has(d.id) ? "checked" : ""} aria-label="${t("Select for export")}">
       <span class="where">${all ? `${esc(shortDate(d.event_date))}<br>` : ""}${t("G{game} · {move}", { game: d.game_no, move: d.move_no })}</span>
-      <span class="what"><span class="mv">${rowWhat(d)}</span><span class="who" title="${t("Best")}: ${esc(t(d.best))}">${rowWho(d)}</span></span>
+      <span class="what"><span class="mv">${rowWhat(d)}</span><span class="who" title="${t("Best")}: ${esc(t(d.best))}">${rowWho(d)}</span>${rowTags(d)}</span>
       <span class="err"><span class="v">${formatLoss(d.error)}</span><span class="sevtxt ${d.class || "ok"}">${d.class ? SEVERITY_LABEL[d.class] : t("Good")}</span></span>
-    </div>`).join("") || `<div class="empty">${icon("check")}<strong>${t("Nothing to review")}</strong><p>${t('No decisions match these filters. Try "Every decision" or another match.')}</p></div>`;
+    </div>`).join("") || (PAGE === "positions"
+    ? `<div class="empty">${icon("tag")}<strong>${t("No positions here")}</strong><p>${t("No positions match these filters. Try another match or tag.")}</p></div>`
+    : `<div class="empty">${icon("check")}<strong>${t("Nothing to review")}</strong><p>${t('No decisions match these filters. Try "Every decision" or another match.')}</p></div>`);
   $("result-count").textContent = plural(state.decisions.length, "decision");
   updateSelection();
 }
 
 function updateSelection() {
   const n = state.selected.size;
+  $("tag-selected").disabled = n === 0;
+  $("tag-selected").innerHTML = `${icon("tag")}${n ? t("Tag {n}", { n }) : t("Tag")}`;
   $("export-btn").disabled = n === 0;
   $("export-btn").innerHTML = `${icon("download")}${n ? t("Export {n} as .xgp", { n }) : t("Export .xgp")}`;
   const all = state.decisions.length > 0 && state.decisions.every((d) => state.selected.has(d.id));
@@ -187,8 +225,10 @@ function renderBoardPanel(d) {
     <p class="small muted note-tight">${esc(d.player1)} ${t("vs")} ${esc(d.player2)} · ${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })} · ${d.match_length ? t("{a}–{b} to {n}", { a: d.score1, b: d.score2, n: d.match_length }) : t("money")} · ${cubeText(d)}</p>
     <div id="board"></div>
     ${pills}
+    <div class="tag-line" id="tag-line"></div>
     <div class="xgid"><code title="XGID">${esc(d.xgid)}</code><button class="btn sm ghost" id="copy-xgid">${icon("copy")}${t("Copy XGID")}</button></div>`;
   drawBoard(d);
+  renderTagLine(d);
   $("board-panel").querySelectorAll("[data-arrow]").forEach((el) => el.addEventListener("click", () => {
     const k = el.dataset.arrow;
     if (state.candidate !== null) state.candidate = null;
@@ -275,7 +315,10 @@ function renderDetail(d) {
 }
 
 async function showDetail(id) {
-  if (state.current !== id) state.candidate = null;
+  if (state.current !== id) {
+    state.candidate = null;
+    Tags.closePicker();
+  }
   state.current = id;
   document.querySelectorAll(".drow").forEach((r) => r.classList.toggle("current", Number(r.dataset.id) === id));
   if (!id) {
@@ -286,7 +329,7 @@ async function showDetail(id) {
   const d = state.decisions.find((x) => x.id === id);
   if (d) {
     renderDetail(d);
-    markSeen(d);
+    if (PAGE === "review") markSeen(d);
   }
 }
 
@@ -357,7 +400,7 @@ function toggleMatchMenu(open) {
 
 function pickedChanged() {
   renderMatchMenu();
-  const kept = Prefs.get("review.filters", {}).player || "";
+  const kept = Prefs.get(`${PAGE}.filters`, {}).player || "";
   fillPlayerAndGame({ ...currentFilters(), player: kept, game: "" });
   loadDecisions();
 }
@@ -394,6 +437,7 @@ async function exportSelected() {
 
 function practiceLink() {
   const f = currentFilters();
+  if (f.tag && f.tag !== "none") return `/practice?tag=${f.tag}`;
   const q = new URLSearchParams();
   if (f.matches.length) q.set("match_id", f.matches.join(","));
   if (f.player.startsWith("name:")) q.set("player_name", f.player.slice(5));
@@ -424,7 +468,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     toast(err.message, true);
     return;
   }
+  try {
+    await Tags.load();
+  } catch (err) {
+    toast(err.message, true);
+  }
   const f = startingFilters(state.me);
+  fillTagFilter(f.tag || "");
   const known = new Set(state.matches.map((m) => String(m.id)));
   state.picked = new Set((f.matches || []).filter((id) => known.has(id)));
   f.matches = [...state.picked];
@@ -467,7 +517,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       $("f-match").focus();
     }
   });
-  ["f-player", "f-kind", "f-severity", "f-game", "f-forced"].forEach((id) => $(id).addEventListener("change", loadDecisions));
+  ["f-player", "f-kind", "f-severity", "f-game", "f-forced", "f-tag"].forEach((id) => $(id).addEventListener("change", loadDecisions));
+  document.addEventListener("tagschange", tagsChanged);
+  $("tag-selected").addEventListener("click", () => Tags.togglePicker($("tag-selected"), selectedDecisions(), () => renderRows()));
+  if ($("manage-tags")) $("manage-tags").addEventListener("click", () => Tags.openManager(() => loadDecisions()));
   $("f-custom").addEventListener("input", () => { clearTimeout(state.timer); state.timer = setTimeout(loadDecisions, 300); });
   $("filters").addEventListener("submit", (ev) => ev.preventDefault());
   $("rows").addEventListener("click", (ev) => {
@@ -488,10 +541,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("export-btn").addEventListener("click", exportSelected);
   $("practice-btn").addEventListener("click", () => (location.href = practiceLink()));
   document.addEventListener("keydown", (ev) => {
-    if (!$("match-menu").hidden) return;
+    if (!$("match-menu").hidden || Tags.picker || document.querySelector("dialog[open]")) return;
     const tag = document.activeElement.tagName;
     if (["SELECT", "TEXTAREA"].includes(tag) || (tag === "INPUT" && document.activeElement.type !== "checkbox")) return;
     if (ev.key === "ArrowDown" || ev.key === "j") { ev.preventDefault(); step(1); }
+    if ((ev.key === "t" || ev.key === "T") && $("tag-line")) { ev.preventDefault(); $("tag-line").querySelector(".tag-btn")?.click(); }
     if (ev.key === "ArrowUp" || ev.key === "k") { ev.preventDefault(); step(-1); }
     if (ev.key === " " && state.current) {
       ev.preventDefault();

@@ -60,6 +60,11 @@ const ICONS = {
   play: '<path d="M6 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L7.5 3.64A1 1 0 0 0 6 4.5Z"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>',
   back: '<path d="m15 18-6-6 6-6"/>',
+  forward: '<path d="m9 18 6-6-6-6"/>',
+  tag: '<path d="M12.59 2.59A2 2 0 0 0 11.17 2H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.42l8.7 8.7a2.43 2.43 0 0 0 3.42 0l6.58-6.58a2.43 2.43 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r="1.2"/>',
+  plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+  pencil: '<path d="M21.17 6.81a2.83 2.83 0 0 0-4-4L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/>',
+  merge: '<path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.17 2.87L4 22"/><path d="m20 22-5-5"/>',
   cube: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 9h.01"/><path d="M15 15h.01"/>',
   list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
 };
@@ -233,12 +238,13 @@ const NAV = [
   ["/", "dashboard", t("Dashboard")],
   ["/practice", "practice", t("Practice")],
   ["/review", "review", t("Review")],
+  ["/positions", "tag", t("Positions")],
   ["/matches", "matches", t("Matches")],
   ["/history", "history", t("History")],
   ["/settings", "settings", t("Settings")],
 ];
 
-const BRAND_MARK = `<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="8" fill="var(--accent)"/><rect x="7" y="7" width="18" height="18" rx="4.5" fill="#fff"/><text x="16" y="20.6" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" font-weight="800" fill="#1e2a46">64</text></svg>`;
+const BRAND_MARK = `<svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><defs><clipPath id="brand-clip"><rect x="1" y="1" width="30" height="30" rx="8"/></clipPath></defs><rect x="1" y="1" width="30" height="30" rx="8" fill="var(--accent)"/><g clip-path="url(#brand-clip)"><path d="M1 1H6L3.5 10.5Z" fill="#fff" fill-opacity=".24"/><path d="M1 31H6L3.5 21.5Z" fill="#0b1b4a" fill-opacity=".2"/><path d="M6 1H11L8.5 10.5Z" fill="#0b1b4a" fill-opacity=".2"/><path d="M6 31H11L8.5 21.5Z" fill="#fff" fill-opacity=".24"/><path d="M11 1H16L13.5 10.5Z" fill="#fff" fill-opacity=".24"/><path d="M11 31H16L13.5 21.5Z" fill="#0b1b4a" fill-opacity=".2"/><path d="M16 1H21L18.5 10.5Z" fill="#0b1b4a" fill-opacity=".2"/><path d="M16 31H21L18.5 21.5Z" fill="#fff" fill-opacity=".24"/><path d="M21 1H26L23.5 10.5Z" fill="#fff" fill-opacity=".24"/><path d="M21 31H26L23.5 21.5Z" fill="#0b1b4a" fill-opacity=".2"/><path d="M26 1H31L28.5 10.5Z" fill="#0b1b4a" fill-opacity=".2"/><path d="M26 31H31L28.5 21.5Z" fill="#fff" fill-opacity=".24"/></g><circle cx="16" cy="16.6" r="9.6" fill="#0b1b4a" fill-opacity=".3"/><circle cx="16" cy="16" r="9.6" fill="#fff"/><circle cx="16" cy="16" r="7.9" fill="none" stroke="#c3cee3" stroke-width=".7"/><text x="16" y="19.2" text-anchor="middle" font-family="Inter, sans-serif" font-size="8.6" font-weight="800" letter-spacing="-.3" fill="#1e2a46">VS</text></svg>`;
 
 const Shell = {
   info: null,
@@ -326,7 +332,7 @@ const Native = {
       "Hide VS Gammon": t("Hide VS Gammon"), "Hide Others": t("Hide Others"), "Show All": t("Show All"), "Quit VS Gammon": t("Quit VS Gammon"),
       "File": t("File"), "Import Matches…": t("Import Matches…"), "Close Window": t("Close Window"),
       "Edit": t("Edit"), "Undo": t("Undo"), "Redo": t("Redo"), "Cut": t("Cut"), "Copy": t("Copy"), "Paste": t("Paste"), "Select All": t("Select All"),
-      "View": t("View"), "Dashboard": t("Dashboard"), "Practice": t("Practice"), "Review": t("Review"), "Matches": t("Matches"), "History": t("History"),
+      "View": t("View"), "Dashboard": t("Dashboard"), "Practice": t("Practice"), "Review": t("Review"), "Positions": t("Positions"), "Matches": t("Matches"), "History": t("History"),
       "Back": t("Back"), "Forward": t("Forward"), "Reload": t("Reload"),
       "Larger Text": t("Larger Text"), "Smaller Text": t("Smaller Text"), "Actual Size": t("Actual Size"),
       "Theme": t("Theme"), "Light": t("Light"), "Dark": t("Dark"), "Match System": t("Match System"), "Language": t("Language"),

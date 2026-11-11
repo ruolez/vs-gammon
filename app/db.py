@@ -191,10 +191,13 @@ def decision_from_row(row, thresholds):
     d["crawford_game"] = bool(d["crawford_game"])
     d["class"] = classify(d["error"], thresholds)
     d["xgid"] = _xgid(d)
+    if "tag_ids" in d:
+        d["tags"] = sorted(int(t) for t in d.pop("tag_ids").split(",")) if d["tag_ids"] else []
     return d
 
 
-MATCH_COLUMNS = "m.player1, m.player2, m.event_date, m.filename"
+MATCH_COLUMNS = "m.player1, m.player2, m.event_date, m.filename, " \
+                "(SELECT group_concat(tag_id) FROM decision_tags WHERE decision_id = d.id) AS tag_ids"
 FULL_SELECT = f"SELECT d.id, d.match_id, d.seen_at, {', '.join('d.' + f for f in DECISION_FIELDS)}, {MATCH_COLUMNS} " \
               "FROM decisions d JOIN matches m ON m.id = d.match_id"
 LIST_SELECT = f"SELECT d.id, d.match_id, d.seen_at, {LIST_COLUMNS}, {MATCH_COLUMNS} " \
@@ -202,8 +205,14 @@ LIST_SELECT = f"SELECT d.id, d.match_id, d.seen_at, {LIST_COLUMNS}, {MATCH_COLUM
 
 
 def decision_filters(match_ids=None, player=None, player_name=None, kind=None, min_error=0.0, game_no=None,
-                     include_forced=False):
+                     include_forced=False, tag_ids=None, untagged=False):
     where, params = ["d.error >= ?"], [min_error]
+    if tag_ids:
+        where.append(f"EXISTS (SELECT 1 FROM decision_tags dt WHERE dt.decision_id = d.id "
+                     f"AND dt.tag_id IN ({','.join('?' * len(tag_ids))}))")
+        params += list(tag_ids)
+    if untagged:
+        where.append("NOT EXISTS (SELECT 1 FROM decision_tags dt WHERE dt.decision_id = d.id)")
     if match_ids:
         where.append(f"d.match_id IN ({','.join('?' * len(match_ids))})")
         params += list(match_ids)
@@ -253,6 +262,91 @@ def mark_seen(conn, decision_id):
 def set_review_mark(conn, match_id, mark):
     with conn:
         conn.execute("UPDATE matches SET review_mark = ? WHERE id = ?", (mark, match_id))
+
+
+TAG_COLORS = ("blue", "green", "yellow", "orange", "red", "purple", "pink", "slate")
+MAX_TAG_NAME = 40
+
+
+def _tag_values(name=None, color=None):
+    values = {}
+    if name is not None:
+        name = " ".join(str(name).split())
+        if not name:
+            raise ValueError("a tag needs a name")
+        if len(name) > MAX_TAG_NAME:
+            raise ValueError(f"tag names are at most {MAX_TAG_NAME} characters")
+        values["name"] = name
+    if color is not None:
+        if color not in TAG_COLORS:
+            raise ValueError("unknown tag colour")
+        values["color"] = color
+    return values
+
+
+def _name_taken(conn, name, tag_id=None):
+    row = conn.execute("SELECT id FROM tags WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
+    return row is not None and row["id"] != tag_id
+
+
+def list_tags(conn):
+    return [dict(r) for r in conn.execute(
+        """SELECT t.id, t.name, t.color, COUNT(dt.decision_id) AS count
+           FROM tags t LEFT JOIN decision_tags dt ON dt.tag_id = t.id
+           GROUP BY t.id ORDER BY t.name COLLATE NOCASE""")]
+
+
+def get_tag(conn, tag_id):
+    return next((t for t in list_tags(conn) if t["id"] == tag_id), None)
+
+
+def create_tag(conn, name, color):
+    values = _tag_values(name, color)
+    if _name_taken(conn, values["name"]):
+        raise ValueError(f"a tag named '{values['name']}' already exists")
+    with conn:
+        cur = conn.execute("INSERT INTO tags (name, color, created_at) VALUES (?, ?, ?)",
+                           (values["name"], values["color"], now_local()))
+    return cur.lastrowid
+
+
+def update_tag(conn, tag_id, name=None, color=None):
+    values = _tag_values(name, color)
+    if "name" in values and _name_taken(conn, values["name"], tag_id):
+        raise ValueError(f"a tag named '{values['name']}' already exists")
+    if values:
+        with conn:
+            conn.execute(f"UPDATE tags SET {', '.join(f'{k} = ?' for k in values)} WHERE id = ?",
+                         list(values.values()) + [tag_id])
+
+
+def delete_tag(conn, tag_id):
+    with conn:
+        conn.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+
+
+def merge_tag(conn, source_id, target_id):
+    with conn:
+        conn.execute(
+            """INSERT OR IGNORE INTO decision_tags (decision_id, tag_id, added_at)
+               SELECT decision_id, ?, added_at FROM decision_tags WHERE tag_id = ?""",
+            (target_id, source_id),
+        )
+        conn.execute("DELETE FROM tags WHERE id = ?", (source_id,))
+
+
+def set_decision_tag(conn, tag_id, add=(), remove=()):
+    with conn:
+        conn.executemany("INSERT OR IGNORE INTO decision_tags (decision_id, tag_id, added_at) VALUES (?, ?, ?)",
+                         [(i, tag_id, now_local()) for i in add])
+        conn.executemany("DELETE FROM decision_tags WHERE decision_id = ? AND tag_id = ?", [(i, tag_id) for i in remove])
+
+
+def existing_decisions(conn, ids):
+    if not ids:
+        return set()
+    rows = conn.execute(f"SELECT id FROM decisions WHERE id IN ({','.join('?' * len(ids))})", list(ids))
+    return {r["id"] for r in rows}
 
 
 def record_export(conn, count, filename):

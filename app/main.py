@@ -15,7 +15,7 @@ from app.importer import MAX_UPLOAD_BYTES, describe, import_match_bytes, upload_
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 MAX_EXPORT = 500
 PAGES = {"/": "index.html", "/matches": "matches.html", "/review": "review.html", "/practice": "practice.html",
-         "/history": "history.html", "/settings": "settings.html"}
+         "/history": "history.html", "/positions": "positions.html", "/settings": "settings.html"}
 CUBE_ANSWER_TEXT = {"double": "Double", "no_double": "No double", "take": "Take", "pass": "Pass"}
 
 
@@ -38,6 +38,8 @@ def _id_list_arg(name):
 def _filter_args():
     return {
         "match_ids": _id_list_arg("match_id"),
+        "tag_ids": _id_list_arg("tag"),
+        "untagged": request.args.get("tag") == "none",
         "player": _int_arg("player"),
         "player_name": request.args.get("player_name") or None,
         "kind": request.args.get("kind") or None,
@@ -302,6 +304,56 @@ def create_app(config=None):
             abort(404)
         db.mark_seen(conn(), decision_id)
         return jsonify(match_id=row["match_id"], review=match_json(match_row(row["match_id"]))["review"])
+
+    def tag_or_404(tag_id):
+        tag = db.get_tag(conn(), tag_id)
+        if not tag:
+            abort(404)
+        return tag
+
+    @app.get("/api/tags")
+    def list_tags():
+        return jsonify(tags=db.list_tags(conn()))
+
+    @app.post("/api/tags")
+    def create_tag():
+        payload = request.get_json(silent=True) or {}
+        tag_id = db.create_tag(conn(), payload.get("name", ""), payload.get("color", "blue"))
+        return jsonify(tag=db.get_tag(conn(), tag_id), tags=db.list_tags(conn()))
+
+    @app.patch("/api/tags/<int:tag_id>")
+    def update_tag(tag_id):
+        tag_or_404(tag_id)
+        payload = request.get_json(silent=True) or {}
+        db.update_tag(conn(), tag_id, name=payload.get("name"), color=payload.get("color"))
+        return jsonify(tag=db.get_tag(conn(), tag_id), tags=db.list_tags(conn()))
+
+    @app.delete("/api/tags/<int:tag_id>")
+    def delete_tag(tag_id):
+        tag_or_404(tag_id)
+        db.delete_tag(conn(), tag_id)
+        return jsonify(tags=db.list_tags(conn()))
+
+    @app.post("/api/tags/<int:tag_id>/merge")
+    def merge_tag(tag_id):
+        tag_or_404(tag_id)
+        target = (request.get_json(silent=True) or {}).get("into")
+        if target == tag_id:
+            raise ValueError("choose another tag to merge into")
+        tag_or_404(target)
+        db.merge_tag(conn(), tag_id, target)
+        return jsonify(tags=db.list_tags(conn()))
+
+    @app.post("/api/tags/<int:tag_id>/decisions")
+    def tag_decisions(tag_id):
+        tag_or_404(tag_id)
+        payload = request.get_json(silent=True) or {}
+        add = [int(i) for i in payload.get("add", []) if str(i).isdigit()]
+        remove = [int(i) for i in payload.get("remove", []) if str(i).isdigit()]
+        if len(db.existing_decisions(conn(), add)) != len(set(add)):
+            abort(404)
+        db.set_decision_tag(conn(), tag_id, add=add, remove=remove)
+        return jsonify(tags=db.list_tags(conn()))
 
     @app.post("/api/export")
     def export():
