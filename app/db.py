@@ -205,12 +205,14 @@ LIST_SELECT = f"SELECT d.id, d.match_id, d.seen_at, {LIST_COLUMNS}, {MATCH_COLUM
 
 
 def decision_filters(match_ids=None, player=None, player_name=None, kind=None, min_error=0.0, game_no=None,
-                     include_forced=False, tag_ids=None, untagged=False):
+                     include_forced=False, tag_ids=None, untagged=False, all_tags=False):
     where, params = ["d.error >= ?"], [min_error]
     if tag_ids:
-        where.append(f"EXISTS (SELECT 1 FROM decision_tags dt WHERE dt.decision_id = d.id "
-                     f"AND dt.tag_id IN ({','.join('?' * len(tag_ids))}))")
-        params += list(tag_ids)
+        tag_ids = sorted(set(tag_ids))
+        needed = len(tag_ids) if all_tags else 1
+        where.append(f"(SELECT COUNT(*) FROM decision_tags dt WHERE dt.decision_id = d.id "
+                     f"AND dt.tag_id IN ({','.join('?' * len(tag_ids))})) >= ?")
+        params += tag_ids + [needed]
     if untagged:
         where.append("NOT EXISTS (SELECT 1 FROM decision_tags dt WHERE dt.decision_id = d.id)")
     if match_ids:

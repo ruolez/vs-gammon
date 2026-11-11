@@ -40,6 +40,7 @@ def _filter_args():
         "match_ids": _id_list_arg("match_id"),
         "tag_ids": _id_list_arg("tag"),
         "untagged": request.args.get("tag") == "none",
+        "all_tags": request.args.get("tag_match") == "all",
         "player": _int_arg("player"),
         "player_name": request.args.get("player_name") or None,
         "kind": request.args.get("kind") or None,

@@ -6,7 +6,7 @@ const state = {
 };
 
 const FILTER_DEFAULTS = {
-  matches: [], player: "", kind: "", severity: PAGE === "positions" ? "all" : "doubtful", custom: "0.05", game: "", forced: false, tag: "",
+  matches: [], player: "", kind: "", severity: PAGE === "positions" ? "all" : "doubtful", custom: "0.05", game: "", forced: false, tag: "", tagMatch: "any",
 };
 
 function readUrl() {
@@ -22,6 +22,7 @@ function readUrl() {
   if (p.has("game")) found.game = p.get("game");
   if (p.has("forced")) found.forced = p.get("forced") === "1";
   if (p.has("tag")) found.tag = p.get("tag");
+  if (p.has("tag_match")) found.tagMatch = p.get("tag_match");
   return found;
 }
 
@@ -55,7 +56,8 @@ function rememberFilters(f) {
 function currentFilters() {
   return {
     matches: state.matches.filter((m) => state.picked.has(String(m.id))).map((m) => String(m.id)), player: $("f-player").value, kind: $("f-kind").value, severity: $("f-severity").value,
-    custom: $("f-custom").value, game: $("f-game").value, forced: $("f-forced").checked, tag: $("f-tag").value,
+    custom: $("f-custom").value, game: $("f-game").value, forced: $("f-forced").checked,
+    tag: state.tagFilter.value().tag, tagMatch: state.tagFilter.value().match,
   };
 }
 
@@ -70,6 +72,7 @@ function writeUrl(f) {
   if (f.game) p.set("game", f.game);
   if (f.forced) p.set("forced", "1");
   if (f.tag) p.set("tag", f.tag);
+  if (f.tag.includes(",") && f.tagMatch === "all") p.set("tag_match", "all");
   history.replaceState(null, "", `/${PAGE}${p.toString() ? `?${p}` : ""}`);
 }
 
@@ -121,6 +124,8 @@ async function loadDecisions() {
   if (f.game && onlyMatch(f)) q.set("game", f.game);
   if (f.forced) q.set("include_forced", "1");
   if (f.tag) q.set("tag", f.tag);
+  if (f.tagMatch === "all") q.set("tag_match", "all");
+  state.loadedTag = f.tag;
   try {
     const { decisions } = await api.get(`/api/decisions?${q}`);
     state.decisions = decisions;
@@ -149,20 +154,12 @@ function rowTags(d) {
   return d.tags && d.tags.length ? `<span class="row-tags">${Tags.chips(d.tags)}</span>` : "";
 }
 
-function fillTagFilter(value) {
-  const options = Tags.list.map((tag) => `<option value="${tag.id}">${esc(tag.name)} (${tag.count})</option>`).join("");
-  $("f-tag").innerHTML = `<option value="">${t("Any or none")}</option><option value="none">${t("Untagged")}</option>${options}`;
-  $("f-tag").value = [...$("f-tag").options].some((o) => o.value === value) ? value : "";
-}
-
 function selectedDecisions() {
   return state.decisions.filter((d) => state.selected.has(d.id));
 }
 
 function tagsChanged() {
-  const before = $("f-tag").value;
-  fillTagFilter(before);
-  if ($("f-tag").value !== before) return loadDecisions();
+  if (state.tagFilter.value().tag !== state.loadedTag) return loadDecisions();
   renderRows();
   const d = state.decisions.find((x) => x.id === state.current);
   if (d) renderTagLine(d);
@@ -437,7 +434,7 @@ async function exportSelected() {
 
 function practiceLink() {
   const f = currentFilters();
-  if (f.tag && f.tag !== "none") return `/practice?tag=${f.tag}`;
+  if (f.tag && f.tag !== "none") return `/practice?tag=${f.tag}${f.tagMatch === "all" ? "&tag_match=all" : ""}`;
   const q = new URLSearchParams();
   if (f.matches.length) q.set("match_id", f.matches.join(","));
   if (f.player.startsWith("name:")) q.set("player_name", f.player.slice(5));
@@ -474,7 +471,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     toast(err.message, true);
   }
   const f = startingFilters(state.me);
-  fillTagFilter(f.tag || "");
+  state.tagFilter = Tags.filter($("f-tag"), { emptyLabel: t("Any or none"), untagged: true, onChange: () => loadDecisions() });
+  state.tagFilter.set(f.tag || "", f.tagMatch);
   const known = new Set(state.matches.map((m) => String(m.id)));
   state.picked = new Set((f.matches || []).filter((id) => known.has(id)));
   f.matches = [...state.picked];
@@ -517,7 +515,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       $("f-match").focus();
     }
   });
-  ["f-player", "f-kind", "f-severity", "f-game", "f-forced", "f-tag"].forEach((id) => $(id).addEventListener("change", loadDecisions));
+  ["f-player", "f-kind", "f-severity", "f-game", "f-forced"].forEach((id) => $(id).addEventListener("change", loadDecisions));
   document.addEventListener("tagschange", tagsChanged);
   $("tag-selected").addEventListener("click", () => Tags.togglePicker($("tag-selected"), selectedDecisions(), () => renderRows()));
   if ($("manage-tags")) $("manage-tags").addEventListener("click", () => Tags.openManager(() => loadDecisions()));
@@ -541,7 +539,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("export-btn").addEventListener("click", exportSelected);
   $("practice-btn").addEventListener("click", () => (location.href = practiceLink()));
   document.addEventListener("keydown", (ev) => {
-    if (!$("match-menu").hidden || Tags.picker || document.querySelector("dialog[open]")) return;
+    if (!$("match-menu").hidden || state.tagFilter.isOpen() || Tags.picker || document.querySelector("dialog[open]")) return;
     const tag = document.activeElement.tagName;
     if (["SELECT", "TEXTAREA"].includes(tag) || (tag === "INPUT" && document.activeElement.type !== "checkbox")) return;
     if (ev.key === "ArrowDown" || ev.key === "j") { ev.preventDefault(); step(1); }

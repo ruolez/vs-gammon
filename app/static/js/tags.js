@@ -181,6 +181,114 @@ const Tags = {
     line.querySelector(".tag-btn span").textContent = d.tags && d.tags.length ? t("Edit tags") : t("Add tag");
   },
 
+  filter(root, { emptyLabel, untagged = false, onChange }) {
+    const state = { ids: new Set(), untagged: false, match: "any" };
+    root.classList.add("dropdown");
+    root.innerHTML = `<button type="button" class="dropdown-btn" aria-haspopup="true" aria-expanded="false"></button><div class="dropdown-panel tag-filter" hidden></div>`;
+    const button = root.querySelector(".dropdown-btn");
+    const panel = root.querySelector(".dropdown-panel");
+
+    const picked = () => this.list.filter((tag) => state.ids.has(tag.id));
+    const label = () => {
+      if (state.untagged) return t("Untagged");
+      const tags = picked();
+      if (!tags.length) return emptyLabel;
+      if (tags.length === 1) return tags[0].name;
+      if (tags.length === 2) return tags.map((tag) => tag.name).join(state.match === "all" ? " + " : ` ${t("or")} `);
+      return t(state.match === "all" ? "All of {n} tags" : "Any of {n} tags", { n: tags.length });
+    };
+    const value = () => ({ tag: state.untagged ? "none" : picked().map((tag) => tag.id).join(","), match: state.match });
+
+    const render = () => {
+      const known = new Set(this.list.map((tag) => tag.id));
+      [...state.ids].forEach((id) => known.has(id) || state.ids.delete(id));
+      button.textContent = label();
+      button.title = label();
+      if (panel.hidden) return;
+      const focused = panel.contains(document.activeElement) ? document.activeElement : null;
+      const focusKey = focused && (focused.dataset.key || null);
+      const scroll = panel.querySelector(".mm-list")?.scrollTop || 0;
+      const n = picked().length;
+      panel.innerHTML = `<div class="mm-head"><span>${n ? t("{n} selected", { n }) : state.untagged ? t("Untagged") : esc(emptyLabel)}</span>
+          <button type="button" class="btn ghost sm" data-key="clear" ${n || state.untagged ? "" : "disabled"}>${t("Clear")}</button></div>
+        ${n > 1 ? `<div class="tf-match"><span>${t("Positions with")}</span><div class="seg" role="group" aria-label="${t("Positions with")}">
+          <button type="button" data-key="any" aria-pressed="${state.match === "any"}">${t("any of them")}</button>
+          <button type="button" data-key="all" aria-pressed="${state.match === "all"}">${t("all of them")}</button></div></div>` : ""}
+        <div class="mm-list">
+          ${untagged ? `<label class="tp-row"><input type="checkbox" data-key="untagged" ${state.untagged ? "checked" : ""}><span class="tf-plain">${t("Untagged")}</span></label>` : ""}
+          ${this.list.map((tag) => `<label class="tp-row"><input type="checkbox" data-key="tag-${tag.id}" ${state.ids.has(tag.id) ? "checked" : ""}>${this.chip(tag)}<span class="tf-count">${tag.count}</span></label>`).join("")
+            || `<p class="tp-empty">${t("No tags yet. Tag positions on the Positions page.")}</p>`}
+        </div>`;
+      panel.querySelector(".mm-list").scrollTop = scroll;
+      if (focusKey) (panel.querySelector(`[data-key="${focusKey}"]`) || panel.querySelector("input"))?.focus();
+    };
+    const changed = () => {
+      render();
+      onChange(value());
+    };
+    const open = (show) => {
+      panel.hidden = !show;
+      button.setAttribute("aria-expanded", String(show));
+      render();
+      if (show) {
+        panel.style.left = "";
+        panel.style.right = "";
+        if (panel.getBoundingClientRect().right > document.documentElement.clientWidth - 8) {
+          panel.style.left = "auto";
+          panel.style.right = "0";
+        }
+      }
+      if (show) panel.querySelector("input")?.focus();
+    };
+
+    button.addEventListener("click", () => open(panel.hidden));
+    panel.addEventListener("change", (ev) => {
+      const key = ev.target.dataset.key || "";
+      if (key === "untagged") {
+        state.untagged = ev.target.checked;
+        if (state.untagged) state.ids.clear();
+      } else if (key.startsWith("tag-")) {
+        const id = Number(key.slice(4));
+        ev.target.checked ? state.ids.add(id) : state.ids.delete(id);
+        if (ev.target.checked) state.untagged = false;
+      }
+      changed();
+    });
+    panel.addEventListener("click", (ev) => {
+      const key = ev.target.closest("button")?.dataset.key;
+      if (key === "clear") {
+        state.ids.clear();
+        state.untagged = false;
+        changed();
+      } else if ((key === "any" || key === "all") && state.match !== key) {
+        state.match = key;
+        changed();
+      }
+    });
+    document.addEventListener("click", (ev) => {
+      if (!panel.hidden && !ev.composedPath().includes(root)) open(false);
+    });
+    root.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape" && !panel.hidden) {
+        ev.stopPropagation();
+        open(false);
+        button.focus();
+      }
+    });
+    document.addEventListener("tagschange", render);
+
+    return {
+      isOpen: () => !panel.hidden,
+      value,
+      set(tag, match) {
+        state.untagged = tag === "none";
+        state.ids = new Set(state.untagged ? [] : String(tag || "").split(",").filter(Boolean).map(Number));
+        state.match = match === "all" ? "all" : "any";
+        render();
+      },
+    };
+  },
+
   swatches(name, selected) {
     return `<div class="swatches" role="radiogroup" aria-label="${t("Colour")}">${this.COLORS.map((color) =>
       `<label class="swatch-pick" title="${t(color)}"><input type="radio" name="${name}" value="${color}" ${color === selected ? "checked" : ""}><i class="tag-dot" data-color="${color}"></i><span class="sr-only">${t(color)}</span></label>`).join("")}</div>`;

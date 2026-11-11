@@ -30,10 +30,10 @@
       <div class="field"><label for="s-mode">Which</label><select id="s-mode"><option value="due">Due: missed first, then new</option><option value="misses">Only ones I missed</option><option value="new">Only new ones</option><option value="all">Everything, solved included</option></select></div>
       <div class="field"><label for="s-match">Match</label><select id="s-match"><option value="">All matches</option></select></div>
       <label class="check"><input type="checkbox" id="s-shuffle"> Shuffle</label>
-      <p class="set-note small muted" id="set-note" hidden>Practising a tag uses every position with it, whatever the player, match or error. Type, Which and Shuffle still apply.</p>
+      <p class="set-note small muted" id="set-note" hidden>Practising tags uses every position with them, whatever the player, match or error. Type, Which and Shuffle still apply.</p>
     </form>
     <div class="session-bar">
-      <div class="field set-field"><label for="s-set" class="sr-only">Practise</label><select id="s-set" title="Practise all your positions or one tag"><option value="">All positions</option></select></div>
+      <div class="field set-field"><span class="sr-only" id="s-set-label">Practise</span><div id="s-set" role="group" aria-labelledby="s-set-label" title="Practise all your positions or a set of tags"></div></div>
       <div class="session-summary" id="summary"></div>
       <div class="progress" role="progressbar" aria-label="Session progress" id="progressbar"><span id="progress" style="width:0%"></span></div>
       <span class="count-text" id="progress-text">0 / 0</span>

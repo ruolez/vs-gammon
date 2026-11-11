@@ -18,7 +18,8 @@ function savePrefs() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       player: $("s-player").value, severity: $("s-severity").value, kind: $("s-kind").value,
-      mode: $("s-mode").value, match: $("s-match").value, shuffle: $("s-shuffle").checked, set: $("s-set").value,
+      mode: $("s-mode").value, match: $("s-match").value, shuffle: $("s-shuffle").checked,
+      set: state.sets.value().tag, setMatch: state.sets.value().match,
     }));
   } catch (_) {}
 }
@@ -29,23 +30,18 @@ function minError() {
 }
 
 function queryString() {
-  const set = $("s-set").value;
+  const { tag: set, match } = state.sets.value();
   const q = new URLSearchParams({ min_error: set ? 0 : minError(), mode: $("s-mode").value });
   if (set) q.set("tag", set);
+  if (set && match === "all") q.set("tag_match", "all");
   if (!set && $("s-player").value) q.set("player_name", $("s-player").value);
   if (!set && $("s-match").value) q.set("match_id", $("s-match").value);
   if ($("s-kind").value) q.set("kind", $("s-kind").value);
   return q;
 }
 
-function fillSets(value) {
-  $("s-set").innerHTML = `<option value="">${t("All positions")}</option>`
-    + Tags.list.map((tag) => `<option value="${tag.id}">${esc(tag.name)} (${tag.count})</option>`).join("");
-  $("s-set").value = [...$("s-set").options].some((o) => o.value === value) ? value : "";
-}
-
 function syncSetControls() {
-  const tagged = Boolean($("s-set").value);
+  const tagged = Boolean(state.sets.value().tag);
   ["s-player", "s-severity", "s-match"].forEach((id) => ($(id).disabled = tagged));
   $("set-note").hidden = !tagged;
 }
@@ -61,8 +57,8 @@ function shuffle(items) {
 
 function renderSummary() {
   const match = state.matches.find((m) => String(m.id) === $("s-match").value);
-  const tag = Tags.byId(Number($("s-set").value));
-  const chips = tag ? [tag.name, KIND_TEXT[$("s-kind").value], MODE_TEXT[$("s-mode").value]] : [
+  const tagged = Boolean(state.sets.value().tag);
+  const chips = tagged ? [$("s-set").querySelector(".dropdown-btn").textContent, KIND_TEXT[$("s-kind").value], MODE_TEXT[$("s-mode").value]] : [
     $("s-player").value || t("Both players"),
     SEVERITY_TEXT[$("s-severity").value],
     KIND_TEXT[$("s-kind").value],
@@ -146,7 +142,7 @@ function showEmpty() {
   state.phase = "idle";
   renderNav();
   clearStage(t("Nothing due here"));
-  const why = $("s-set").value
+  const why = state.sets.value().tag
     ? t('No positions with this tag match these options. Choose "Everything" to revisit solved ones, or tag more positions on the Positions page.')
     : t('No positions match these options. Choose "Everything" to revisit solved ones, lower the error level, or import another match.');
   $("board").innerHTML = `<div class="empty tall">${icon("check")}<strong>${t("You are all caught up")}</strong><p>${why}</p><button class="btn secondary" id="open-options">${t("Change options")}</button></div>`;
@@ -517,7 +513,7 @@ function toggleOptions(open) {
 }
 
 function onKey(ev) {
-  if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName) || Tags.picker || document.querySelector("dialog[open]")) return;
+  if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName) || state.sets.isOpen() || Tags.picker || document.querySelector("dialog[open]")) return;
   if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
     ev.preventDefault();
     go(ev.key === "ArrowLeft" ? -1 : 1);
@@ -563,8 +559,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     state.thresholds = settings.thresholds;
     state.matches = matches.filter((m) => m.status === "done");
     const prefs = loadPrefs();
+    state.sets = Tags.filter($("s-set"), { emptyLabel: t("All positions"), onChange: () => { syncSetControls(); startSession(); } });
     await Tags.load().catch((err) => toast(err.message, true));
-    fillSets(prefs.set || "");
+    state.sets.set(prefs.set || "", prefs.setMatch);
     $("s-player").innerHTML = `<option value="">${t("Both players")}</option>` + players.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join("");
     $("s-player").value = prefs.player !== undefined ? prefs.player : (settings.me || "");
     $("s-match").innerHTML = `<option value="">${t("All matches")}</option>` + state.matches.map((m) =>
@@ -583,7 +580,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (wanted) $("s-match").value = wanted;
     if (params.get("kind")) $("s-kind").value = params.get("kind");
     if (params.get("severity")) $("s-severity").value = params.get("severity");
-    if (params.has("tag") || params.has("match_id")) fillSets(params.get("tag") || "");
+    if (params.has("tag") || params.has("match_id")) state.sets.set(params.get("tag") || "", params.get("tag_match"));
     syncSetControls();
     if ([...params.keys()].length) history.replaceState(null, "", "/practice");
   } catch (err) {
@@ -591,15 +588,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
   ["s-player", "s-severity", "s-kind", "s-mode", "s-match", "s-shuffle"].forEach((id) => $(id).addEventListener("change", startSession));
-  $("s-set").addEventListener("change", () => { syncSetControls(); startSession(); });
   $("prev-pos").innerHTML = icon("back");
   $("next-pos").innerHTML = icon("forward");
   $("prev-pos").addEventListener("click", () => go(-1));
   $("next-pos").addEventListener("click", () => go(1));
   document.addEventListener("tagschange", () => {
-    const before = $("s-set").value;
-    fillSets(before);
-    if ($("s-set").value !== before) syncSetControls();
+    syncSetControls();
     renderSummary();
     if (state.d && $("tag-line")) Tags.mountLine($("tag-line"), state.d, renderSummary);
   });

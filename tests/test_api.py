@@ -368,6 +368,30 @@ class Tags(ApiTestCase):
              [("Blitz", "blue", 2), ("Prime", "blue", 2)]),
         )
 
+    def test_several_tags_match_any_or_all(self):
+        self.analysed_match()
+        ids = self.decision_ids()
+        blitz = self.create("Blitz").get_json()["tag"]["id"]
+        prime = self.create("Prime").get_json()["tag"]["id"]
+        self.tag(blitz, add=ids[0:3])
+        self.tag(prime, add=ids[2:5])
+        both = f"{blitz},{prime}"
+        self.assertEqual(
+            (self.decision_ids(tag=both), self.decision_ids(tag=both, tag_match="all"),
+             self.decision_ids(tag=blitz, tag_match="all")),
+            (ids[0:5], [ids[2]], ids[0:3]),
+        )
+
+    def test_practice_queue_matches_all_tags(self):
+        self.analysed_match()
+        ids = [d["id"] for d in self.client.get("/api/decisions?min_error=0").get_json()["decisions"]]
+        blitz = self.create("Blitz").get_json()["tag"]["id"]
+        prime = self.create("Prime").get_json()["tag"]["id"]
+        self.tag(blitz, add=ids[0:2])
+        self.tag(prime, add=ids[1:3])
+        items = self.client.get(f"/api/practice/queue?tag={blitz},{prime}&tag_match=all&mode=all").get_json()["items"]
+        self.assertEqual([i["id"] for i in items], [ids[1]])
+
     def test_rename_and_recolour(self):
         tag_id = self.create("Blitz").get_json()["tag"]["id"]
         response = self.client.patch(f"/api/tags/{tag_id}", json={"name": "Blitzes", "color": "purple"})
