@@ -541,6 +541,17 @@
       "folder access is not set up; run ./install.sh update to enable it": "доступ к папкам не настроен; выполните ./install.sh update",
       "folder access is not set up; run ./install.sh update": "доступ к папкам не настроен; выполните ./install.sh update",
       "that folder points outside your home folder": "эта папка находится вне домашней папки",
+      // review: match picker and review progress
+      "Reviewed": "Разобран",
+      "Reviewed. Click to mark it not reviewed.": "Разобран. Нажмите, чтобы снять отметку.",
+      "{seen} of {total} mistakes opened. Click to mark the match reviewed.": "Открыто ошибок: {seen} из {total}. Нажмите, чтобы отметить матч как разобранный.",
+      "{matches} selected": "Выбрано: {matches}",
+      "Showing all matches": "Показаны все матчи",
+      "Show all": "Показать все",
+      "Added {when}": "Добавлен {when}",
+      "played {date}": "сыгран {date}",
+      "No analysed matches yet": "Проанализированных матчей пока нет",
+      "{matches} from Review": "{matches} из разбора",
     },
   };
   if (typeof module !== "undefined" && module.exports) module.exports = RU;

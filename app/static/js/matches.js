@@ -48,7 +48,7 @@ function renderMatches(matches) {
         <td class="nowrap"><div class="cell-title tabular">${esc(shortDate(m.event_date || m.created_at))}</div><div class="cell-sub">${esc(m.event_time || "")}</div></td>
         <td><div class="cell-title">${length}${games}${m.games ? ` · ${scoreLine(m)}` : ""}</div><div class="cell-sub" title="${esc(m.source_path || m.filename)}">${source}${m.site ? ` · ${esc(m.site)}` : ""}</div></td>
         <td><div class="players">${playerLine(m, 1)}${playerLine(m, 2)}</div></td>
-        <td class="nowrap">${statusLabel(m)}${m.plies !== null && m.status === "done" ? `<div class="cell-sub">${m.plies}-ply · ${t("{n} s", { n: m.analysis_seconds })}</div>` : ""}${m.error ? `<div class="cell-sub status error">${esc(I18n.server(m.error))}</div>` : ""}</td>
+        <td class="nowrap">${statusLabel(m)}${m.plies !== null && m.status === "done" ? `<div class="cell-sub">${m.plies}-ply · ${t("{n} s", { n: m.analysis_seconds })}</div>` : ""}${m.review && m.review.reviewed ? `<div class="cell-sub reviewed">${icon("check")}${t("Reviewed")}</div>` : ""}${m.error ? `<div class="cell-sub status error">${esc(I18n.server(m.error))}</div>` : ""}</td>
         <td><div class="row-actions">
           ${m.status === "done" ? `<a class="btn sm" href="/review?match=${m.id}">${t("Review")}</a><a class="btn sm secondary" href="/practice?match_id=${m.id}">${t("Practise")}</a>` : ""}
           <button class="btn sm ghost icon-only" data-reanalyze="${m.id}" title="${t("Re-analyse")}" aria-label="${t("Re-analyse")}" ${m.status === "analyzing" ? "disabled" : ""}>${icon("refresh")}</button>

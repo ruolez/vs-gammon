@@ -5,6 +5,7 @@ import uuid
 import zipfile
 
 from app.analysis import classify
+from app.position import seat_decider
 from app.xgp.thumbnail import render_thumbnail
 from app.xgp.writer import build_xgp
 
@@ -68,7 +69,8 @@ def build_export_zip(decisions, thresholds, saved_at):
         for decision in decisions:
             error_class = classify(decision["error"], thresholds)
             name = _unique(export_filename(decision, error_class), used)
-            spot = spot_from_decision(decision, saved_at, uuid.uuid4().bytes_le, render_thumbnail(decision["board"]))
+            seated = seat_decider(decision)
+            spot = spot_from_decision(seated, saved_at, uuid.uuid4().bytes_le, render_thumbnail(seated["board"]))
             archive.writestr(name, build_xgp(spot))
             player_name = decision["player1"] if decision["player"] == 1 else decision["player2"]
             writer.writerow([

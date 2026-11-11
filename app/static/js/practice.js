@@ -52,7 +52,7 @@ function renderSummary() {
     SEVERITY_TEXT[$("s-severity").value],
     KIND_TEXT[$("s-kind").value],
     MODE_TEXT[$("s-mode").value],
-    match ? `${match.player1} ${t("vs")} ${match.player2}, ${shortDate(match.event_date)}` : t("All matches"),
+    match ? `${match.player1} ${t("vs")} ${match.player2}, ${shortDate(match.event_date)}` : $("s-match").value ? $("s-match").selectedOptions[0].textContent : t("All matches"),
   ];
   if ($("s-shuffle").checked) chips.push(t("Shuffled"));
   $("summary").innerHTML = chips.map((c, i) => `<span class="chip">${i === 0 ? `<strong>${esc(c)}</strong>` : esc(c)}</span>`).join("");
@@ -515,7 +515,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("s-shuffle").checked = !!prefs.shuffle;
     const params = new URLSearchParams(location.search);
     if (params.get("player_name")) $("s-player").value = params.get("player_name");
-    if (params.get("match_id")) $("s-match").value = params.get("match_id");
+    const wanted = params.get("match_id");
+    if (wanted && ![...$("s-match").options].some((o) => o.value === wanted)) {
+      $("s-match").insertAdjacentHTML("beforeend", `<option value="${esc(wanted)}">${t("{matches} from Review", { matches: plural(wanted.split(",").length, "match") })}</option>`);
+    }
+    if (wanted) $("s-match").value = wanted;
     if (params.get("kind")) $("s-kind").value = params.get("kind");
     if (params.get("severity")) $("s-severity").value = params.get("severity");
     if ([...params.keys()].length) history.replaceState(null, "", "/practice");

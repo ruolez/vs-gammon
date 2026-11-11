@@ -1,15 +1,15 @@
 const state = {
-  matches: [], thresholds: null, decisions: [], selected: new Set(), current: null, focus: null,
+  matches: [], picked: new Set(), thresholds: null, decisions: [], selected: new Set(), current: null, focus: null,
   arrows: new Set(Prefs.get("review.arrows", ["played", "best"])), candidate: null, detail: null,
 };
 
-const FILTER_DEFAULTS = { match: "", player: "", kind: "", severity: "doubtful", custom: "0.05", game: "", forced: false };
+const FILTER_DEFAULTS = { matches: [], player: "", kind: "", severity: "doubtful", custom: "0.05", game: "", forced: false };
 
 function readUrl() {
   const p = new URLSearchParams(location.search);
   state.focus = Number(p.get("focus")) || null;
   const found = {};
-  if (p.has("match")) found.match = p.get("match");
+  if (p.has("match")) found.matches = p.get("match").split(",").filter(Boolean);
   if (p.has("player")) found.player = p.get("player");
   if (p.has("player_name")) found.player = `name:${p.get("player_name")}`;
   if (p.has("kind")) found.kind = p.get("kind");
@@ -28,13 +28,20 @@ function startingFilters(defaultPlayer) {
     if (state.focus && !("player" in fromUrl)) linked.player = "";
     return linked;
   }
-  return { ...base, ...Prefs.get("review.filters", {}) };
+  const saved = Prefs.get("review.filters", {});
+  if (saved.match && !saved.matches) saved.matches = [saved.match];
+  delete saved.match;
+  return { ...base, ...saved };
+}
+
+function onlyMatch(f) {
+  return f.matches.length === 1 ? state.matches.find((m) => String(m.id) === f.matches[0]) : null;
 }
 
 function rememberFilters(f) {
   let player = f.player;
   if (player === "1" || player === "2") {
-    const match = state.matches.find((m) => String(m.id) === f.match);
+    const match = onlyMatch(f);
     player = match ? `name:${player === "1" ? match.player1 : match.player2}` : "";
   }
   Prefs.set("review.filters", { ...f, player });
@@ -42,14 +49,14 @@ function rememberFilters(f) {
 
 function currentFilters() {
   return {
-    match: $("f-match").value, player: $("f-player").value, kind: $("f-kind").value, severity: $("f-severity").value,
+    matches: state.matches.filter((m) => state.picked.has(String(m.id))).map((m) => String(m.id)), player: $("f-player").value, kind: $("f-kind").value, severity: $("f-severity").value,
     custom: $("f-custom").value, game: $("f-game").value, forced: $("f-forced").checked,
   };
 }
 
 function writeUrl(f) {
   const p = new URLSearchParams();
-  if (f.match) p.set("match", f.match);
+  if (f.matches.length) p.set("match", f.matches.join(","));
   if (f.player.startsWith("name:")) p.set("player_name", f.player.slice(5));
   else if (f.player) p.set("player", f.player);
   if (f.kind) p.set("kind", f.kind);
@@ -67,7 +74,7 @@ function minError(f) {
 }
 
 function fillPlayerAndGame(f) {
-  const match = state.matches.find((m) => String(m.id) === f.match);
+  const match = onlyMatch(f);
   if (match) {
     $("f-player").innerHTML = `<option value="">${t("Both players")}</option><option value="1">${esc(match.player1)}</option><option value="2">${esc(match.player2)}</option>`;
     $("f-game").innerHTML = `<option value="">${t("All games")}</option>` + (match.games || []).map((g) =>
@@ -75,7 +82,8 @@ function fillPlayerAndGame(f) {
     $("f-game").disabled = false;
     if (f.player.startsWith("name:")) f.player = f.player.slice(5) === match.player1 ? "1" : f.player.slice(5) === match.player2 ? "2" : "";
   } else {
-    const names = [...new Set(state.matches.flatMap((m) => [m.player1, m.player2]).filter(Boolean))].sort();
+    const pool = f.matches.length ? state.matches.filter((m) => f.matches.includes(String(m.id))) : state.matches;
+    const names = [...new Set(pool.flatMap((m) => [m.player1, m.player2]).filter(Boolean))].sort();
     $("f-player").innerHTML = `<option value="">${t("Both players")}</option>` + names.map((n) => `<option value="name:${esc(n)}">${esc(n)}</option>`).join("");
     $("f-game").innerHTML = `<option value="">${t("All games")}</option>`;
     $("f-game").disabled = true;
@@ -86,7 +94,8 @@ function fillPlayerAndGame(f) {
 
 function subtitle() {
   const f = currentFilters();
-  const match = state.matches.find((m) => String(m.id) === f.match);
+  const match = onlyMatch(f);
+  if (f.matches.length > 1) return t("{matches} selected", { matches: plural(f.matches.length, "match") });
   if (!match) return t("{matches} analysed", { matches: plural(state.matches.length, "match") });
   const len = match.match_length ? t("{n}-point match", { n: match.match_length }) : t("money session");
   return `${match.player1} ${t("vs")} ${match.player2} · ${len} · ${shortDate(match.event_date || match.created_at)}`;
@@ -99,11 +108,11 @@ async function loadDecisions() {
   $("custom-field").hidden = f.severity !== "custom";
   $("review-sub").textContent = subtitle();
   const q = new URLSearchParams({ min_error: minError(f) });
-  if (f.match) q.set("match_id", f.match);
+  if (f.matches.length) q.set("match_id", f.matches.join(","));
   if (f.player.startsWith("name:")) q.set("player_name", f.player.slice(5));
   else if (f.player) q.set("player", f.player);
   if (f.kind) q.set("kind", f.kind);
-  if (f.game && f.match) q.set("game", f.game);
+  if (f.game && onlyMatch(f)) q.set("game", f.game);
   if (f.forced) q.set("include_forced", "1");
   try {
     const { decisions } = await api.get(`/api/decisions?${q}`);
@@ -130,7 +139,7 @@ function rowWho(d) {
 }
 
 function renderRows() {
-  const all = !$("f-match").value;
+  const all = state.picked.size !== 1;
   $("rows").innerHTML = state.decisions.map((d) => `
     <div class="drow ${d.id === state.current ? "current" : ""}" data-id="${d.id}" role="button" tabindex="-1">
       <input type="checkbox" data-select="${d.id}" ${state.selected.has(d.id) ? "checked" : ""} aria-label="${t("Select for export")}">
@@ -275,7 +284,82 @@ async function showDetail(id) {
     return;
   }
   const d = state.decisions.find((x) => x.id === id);
-  if (d) renderDetail(d);
+  if (d) {
+    renderDetail(d);
+    markSeen(d);
+  }
+}
+
+function markSeen(d) {
+  if (d.seen_at) return;
+  d.seen_at = "now";
+  api.post(`/api/decisions/${d.id}/seen`).then(({ match_id, review }) => {
+    const match = state.matches.find((m) => m.id === match_id);
+    if (match) match.review = review;
+    renderMatchMenu();
+  }).catch(() => { d.seen_at = null; });
+}
+
+function addedAt(m) {
+  const date = new Date(m.created_at);
+  if (Number.isNaN(date.getTime())) return m.created_at || "";
+  return `${shortDate(m.created_at)}, ${date.toLocaleTimeString(I18n.locale(), { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function reviewBadge(m) {
+  const r = m.review || { mistakes: 0, seen: 0, reviewed: false };
+  const title = r.reviewed
+    ? t("Reviewed. Click to mark it not reviewed.")
+    : t("{seen} of {total} mistakes opened. Click to mark the match reviewed.", { seen: r.seen, total: r.mistakes });
+  return `<button type="button" class="mm-review ${r.reviewed ? "done" : ""}" data-review="${m.id}" aria-pressed="${r.reviewed}" title="${esc(title)}">${
+    r.reviewed ? `${icon("check")}${t("Reviewed")}` : `${r.seen}/${r.mistakes}`}</button>`;
+}
+
+function matchButtonText() {
+  const picked = state.matches.filter((m) => state.picked.has(String(m.id)));
+  if (!picked.length) return t("All matches");
+  if (picked.length === 1) return `${picked[0].player1} ${t("vs")} ${picked[0].player2}`;
+  return plural(picked.length, "match");
+}
+
+function renderMatchMenu() {
+  $("f-match").textContent = matchButtonText();
+  const menu = $("match-menu");
+  if (menu.hidden) return;
+  const focused = menu.contains(document.activeElement) ? document.activeElement : null;
+  const focusKey = !focused ? null : focused.dataset.review ? `[data-review="${focused.dataset.review}"]`
+    : focused.matches("input") ? `input[value="${focused.value}"]` : focused.matches("[data-clear]") ? "[data-clear]" : null;
+  const scroll = menu.querySelector(".mm-list")?.scrollTop || 0;
+  const n = state.picked.size;
+  menu.innerHTML = `<div class="mm-head"><span>${n ? t("{matches} selected", { matches: plural(n, "match") }) : t("Showing all matches")}</span>
+      <button type="button" class="btn ghost sm" data-clear ${n ? "" : "disabled"}>${t("Show all")}</button></div>
+    <div class="mm-list">${state.matches.map((m) => {
+      const length = m.match_length ? t("{n}-point", { n: m.match_length }) : t("Money");
+      const played = m.event_date ? ` · ${t("played {date}", { date: esc(shortDate(m.event_date)) })}` : "";
+      return `<div class="mm-row ${state.picked.has(String(m.id)) ? "picked" : ""}">
+        <label class="mm-pick"><input type="checkbox" value="${m.id}" ${state.picked.has(String(m.id)) ? "checked" : ""}>
+          <span class="mm-text"><span class="mm-title">${esc(m.player1)} ${t("vs")} ${esc(m.player2)}</span>
+          <span class="mm-sub">${t("Added {when}", { when: esc(addedAt(m)) })} · ${length}${played}</span></span></label>
+        ${reviewBadge(m)}
+      </div>`;
+    }).join("") || `<div class="empty small">${t("No analysed matches yet")}</div>`}</div>`;
+  menu.querySelector(".mm-list").scrollTop = scroll;
+  if (focusKey) (menu.querySelector(focusKey) || menu.querySelector("input"))?.focus();
+}
+
+function toggleMatchMenu(open) {
+  const menu = $("match-menu");
+  menu.hidden = !open;
+  $("f-match").setAttribute("aria-expanded", String(open));
+  renderMatchMenu();
+  if (open) menu.querySelector("input")?.focus();
+}
+
+function pickedChanged() {
+  renderMatchMenu();
+  const kept = Prefs.get("review.filters", {}).player || "";
+  fillPlayerAndGame({ ...currentFilters(), player: kept, game: "" });
+  loadDecisions();
 }
 
 async function exportSelected() {
@@ -311,10 +395,10 @@ async function exportSelected() {
 function practiceLink() {
   const f = currentFilters();
   const q = new URLSearchParams();
-  if (f.match) q.set("match_id", f.match);
+  if (f.matches.length) q.set("match_id", f.matches.join(","));
   if (f.player.startsWith("name:")) q.set("player_name", f.player.slice(5));
   else if (f.player) {
-    const match = state.matches.find((m) => String(m.id) === f.match);
+    const match = onlyMatch(f);
     if (match) q.set("player_name", f.player === "1" ? match.player1 : match.player2);
   }
   if (f.kind) q.set("kind", f.kind);
@@ -333,7 +417,7 @@ function step(delta) {
 document.addEventListener("DOMContentLoaded", async () => {
   try {
     const [{ matches }, { settings }] = await Promise.all([api.get("/api/matches"), api.get("/api/settings")]);
-    state.matches = matches.filter((m) => m.status === "done");
+    state.matches = matches.filter((m) => m.status === "done").sort((a, b) => b.id - a.id);
     state.thresholds = settings.thresholds;
     state.me = settings.me || "";
   } catch (err) {
@@ -341,19 +425,47 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
   const f = startingFilters(state.me);
-  $("f-match").innerHTML = `<option value="">${t("All matches")}</option>` + state.matches.map((m) =>
-    `<option value="${m.id}">${esc(shortDate(m.event_date || m.created_at))} · ${esc(m.player1)} ${t("vs")} ${esc(m.player2)}</option>`).join("");
-  if ([...$("f-match").options].some((o) => o.value === f.match)) $("f-match").value = f.match;
+  const known = new Set(state.matches.map((m) => String(m.id)));
+  state.picked = new Set((f.matches || []).filter((id) => known.has(id)));
+  f.matches = [...state.picked];
+  renderMatchMenu();
   fillPlayerAndGame(f);
   $("f-kind").value = f.kind;
   $("f-severity").value = f.severity;
   $("f-custom").value = f.custom;
   $("f-forced").checked = f.forced;
 
-  $("f-match").addEventListener("change", () => {
-    const kept = Prefs.get("review.filters", {}).player || "";
-    fillPlayerAndGame({ ...currentFilters(), player: kept, game: "" });
-    loadDecisions();
+  $("f-match").addEventListener("click", () => toggleMatchMenu($("match-menu").hidden));
+  $("match-menu").addEventListener("change", (ev) => {
+    if (ev.target.type !== "checkbox") return;
+    ev.target.checked ? state.picked.add(ev.target.value) : state.picked.delete(ev.target.value);
+    pickedChanged();
+  });
+  $("match-menu").addEventListener("click", async (ev) => {
+    if (ev.target.closest("[data-clear]")) {
+      state.picked.clear();
+      pickedChanged();
+      return;
+    }
+    const button = ev.target.closest("[data-review]");
+    if (!button) return;
+    const match = state.matches.find((m) => m.id === Number(button.dataset.review));
+    try {
+      const { review } = await api.put(`/api/matches/${match.id}/reviewed`, { reviewed: !match.review.reviewed });
+      match.review = review;
+      renderMatchMenu();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
+  document.addEventListener("click", (ev) => {
+    if (!$("match-menu").hidden && !ev.composedPath().includes($("match-dd"))) toggleMatchMenu(false);
+  });
+  $("match-dd").addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !$("match-menu").hidden) {
+      toggleMatchMenu(false);
+      $("f-match").focus();
+    }
   });
   ["f-player", "f-kind", "f-severity", "f-game", "f-forced"].forEach((id) => $(id).addEventListener("change", loadDecisions));
   $("f-custom").addEventListener("input", () => { clearTimeout(state.timer); state.timer = setTimeout(loadDecisions, 300); });
@@ -376,6 +488,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("export-btn").addEventListener("click", exportSelected);
   $("practice-btn").addEventListener("click", () => (location.href = practiceLink()));
   document.addEventListener("keydown", (ev) => {
+    if (!$("match-menu").hidden) return;
     const tag = document.activeElement.tagName;
     if (["SELECT", "TEXTAREA"].includes(tag) || (tag === "INPUT" && document.activeElement.type !== "checkbox")) return;
     if (ev.key === "ArrowDown" || ev.key === "j") { ev.preventDefault(); step(1); }

@@ -7,7 +7,7 @@ import zipfile
 from app.export import build_export_zip, export_filename, spot_from_decision
 from app.xgp.archive import read_xg_file
 from app.xgp.records import get_field, record_type, split_records
-from tests.test_position import START_FRAME
+from tests.test_position import START_FRAME, frame_with
 
 SAVED_AT = datetime.datetime(2026, 11, 10, 12, 0)
 THRESHOLDS = {"doubtful": 0.03, "bad": 0.06, "very_bad": 0.12}
@@ -73,6 +73,18 @@ class BuildExportZip(unittest.TestCase):
             ),
         )
 
+    def test_the_decider_is_xg_player1_at_the_bottom(self):
+        played = decision(board=frame_with({0: -1, 6: 2, 20: -3, 25: 1}), score1=2, score2=0)
+        archive = zipfile.ZipFile(io.BytesIO(build_export_zip([played], THRESHOLDS, SAVED_AT)))
+        name = next(n for n in archive.namelist() if n.endswith(".xgp"))
+        header, game, cube, _ = split_records(dict(read_xg_file(archive.read(name))["files"])["temp.xg"])
+        self.assertEqual(
+            (get_field(header, "player1"), get_field(header, "player2"), get_field(game, "score1"),
+             get_field(game, "score2"), get_field(cube, "active"), get_field(cube, "cube_b"),
+             get_field(cube, "position")),
+            ("fish/soup", "chess gamm0n", 0, 2, 1, 1, frame_with({0: -1, 5: 3, 19: -2, 25: 1})),
+        )
+
     def test_duplicate_names_get_a_suffix(self):
         archive = zipfile.ZipFile(io.BytesIO(build_export_zip([decision(), decision(id=9)], THRESHOLDS, SAVED_AT)))
         self.assertEqual(
@@ -81,11 +93,11 @@ class BuildExportZip(unittest.TestCase):
              "chess_gamm0n-vs-fish_soup_2026-11-09_g1_m16_fish_soup_checker_bad.xgp"],
         )
 
-    def test_players_on_roll_in_xgp(self):
+    def test_move_record_has_the_decider_on_roll(self):
         archive = zipfile.ZipFile(io.BytesIO(build_export_zip([decision()], THRESHOLDS, SAVED_AT)))
         name = next(n for n in archive.namelist() if n.endswith(".xgp"))
         records = split_records(dict(read_xg_file(archive.read(name))["files"])["temp.xg"])
-        self.assertEqual((get_field(records[3], "active"), get_field(records[3], "dice")), (-1, [6, 6]))
+        self.assertEqual((get_field(records[3], "active"), get_field(records[3], "dice")), (1, [6, 6]))
 
 
 if __name__ == "__main__":

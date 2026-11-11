@@ -20,6 +20,25 @@ def player1_frame(board_pair, on_roll):
     return frame if on_roll == 1 else flip_frame(frame)
 
 
+OTHER_SIDE = {0: 0, 1: 2, 2: 1}
+
+
+def seat_decider(decision):
+    if decision["player"] == 1:
+        return dict(decision)
+    return {
+        **decision,
+        "player": 1,
+        "player1": decision.get("player2"),
+        "player2": decision.get("player1"),
+        "score1": decision["score2"],
+        "score2": decision["score1"],
+        "on_roll": OTHER_SIDE[decision["on_roll"]],
+        "cube_owner": OTHER_SIDE[decision["cube_owner"]],
+        "board": flip_frame(decision["board"]),
+    }
+
+
 def _xgid_char(count):
     if count > 0:
         return chr(ord("A") + count - 1)

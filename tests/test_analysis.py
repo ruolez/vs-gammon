@@ -1,6 +1,6 @@
 import unittest
 
-from app.analysis import checker_error, classify, double_error, take_error
+from app.analysis import checker_error, classify, double_error, review_state, take_error
 
 XG_STYLE = {"doubtful": 0.02, "bad": 0.04, "very_bad": 0.08}
 
@@ -57,6 +57,32 @@ class Classify(unittest.TestCase):
         cases = [(0.0, None), (0.0199, None), (0.02, "doubtful"), (0.0399, "doubtful"),
                  (0.04, "bad"), (0.0799, "bad"), (0.08, "very_bad"), (1.5, "very_bad")]
         self.assertEqual([classify(e, XG_STYLE) for e, _ in cases], [c for _, c in cases])
+
+
+class ReviewState(unittest.TestCase):
+    def decisions(self):
+        # (player, error, seen)
+        rows = [(1, 0.05, True), (1, 0.30, False), (2, 0.025, False), (2, 0.10, True), (1, 0.01, False)]
+        return [{"player": p, "error": e, "seen_at": "2026-11-11T10:00:00" if seen else None} for p, e, seen in rows]
+
+    def test_counts_mistakes_of_both_players(self):
+        self.assertEqual(review_state(self.decisions(), XG_STYLE, side=None, mark=None),
+                         {"mistakes": 4, "seen": 2, "auto": False, "reviewed": False, "mark": None})
+
+    def test_counts_only_my_side_once_every_mistake_is_seen(self):
+        self.assertEqual(review_state(self.decisions(), XG_STYLE, side=2, mark=None),
+                         {"mistakes": 2, "seen": 1, "auto": False, "reviewed": False, "mark": None})
+        seen = [{**d, "seen_at": "x"} for d in self.decisions()]
+        self.assertEqual(review_state(seen, XG_STYLE, side=2, mark=None)["reviewed"], True)
+
+    def test_a_match_without_mistakes_is_not_reviewed_by_itself(self):
+        self.assertEqual(review_state([], XG_STYLE, side=None, mark=None)["reviewed"], False)
+
+    def test_manual_mark_wins(self):
+        self.assertEqual(
+            [review_state(self.decisions(), XG_STYLE, side=1, mark=m)["reviewed"] for m in (1, 0)],
+            [True, False],
+        )
 
 
 if __name__ == "__main__":

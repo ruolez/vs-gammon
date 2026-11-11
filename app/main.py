@@ -7,7 +7,7 @@ from flask import Flask, abort, g, jsonify, request, send_file, send_from_direct
 
 from app import db, jobs, migrate_docker, watcher
 from app.dashboard import build_dashboard
-from app.analysis import classify, grade_checker, grade_cube, is_correct, summarize
+from app.analysis import classify, grade_checker, grade_cube, is_correct, review_state, summarize
 from app.engine.runner import gnubg_version
 from app.export import build_export_zip
 from app.importer import MAX_UPLOAD_BYTES, describe, import_match_bytes, upload_path
@@ -31,9 +31,13 @@ def _float_arg(name, default=0.0):
         return default
 
 
+def _id_list_arg(name):
+    return [int(v) for v in request.args.get(name, "").split(",") if v.strip().isdigit()] or None
+
+
 def _filter_args():
     return {
-        "match_id": _int_arg("match_id"),
+        "match_ids": _id_list_arg("match_id"),
         "player": _int_arg("player"),
         "player_name": request.args.get("player_name") or None,
         "kind": request.args.get("kind") or None,
@@ -79,11 +83,13 @@ def _validate_settings(payload):
     return changes
 
 
-def _match_json(row, thresholds, conn):
+def _match_json(row, thresholds, conn, me):
     match = dict(row)
     if match["status"] == "done":
         decisions = db.all_decisions_for_match(conn, match["id"], thresholds)
         match["summary"] = summarize(decisions, thresholds)
+        side = {match["player1"]: 1, match["player2"]: 2}.get(me) if me else None
+        match["review"] = review_state(decisions, thresholds, side, match["review_mark"])
         match["games"] = [dict(r) for r in conn.execute(
             "SELECT game_no, score1, score2, crawford, winner, points FROM games WHERE match_id = ? ORDER BY game_no",
             (match["id"],))]
@@ -127,6 +133,16 @@ def create_app(config=None):
 
     def thresholds():
         return db.get_settings(conn())["thresholds"]
+
+    def match_json(row):
+        settings = db.get_settings(conn())
+        return _match_json(row, settings["thresholds"], conn(), settings["me"])
+
+    def match_row(match_id):
+        row = conn().execute("SELECT * FROM matches WHERE id = ?", (match_id,)).fetchone()
+        if not row:
+            abort(404)
+        return row
 
     def require_folders():
         if not folders_available:
@@ -174,16 +190,12 @@ def create_app(config=None):
 
     @app.get("/api/matches")
     def list_matches():
-        t = thresholds()
         rows = conn().execute("SELECT * FROM matches ORDER BY COALESCE(event_date, '') DESC, id DESC").fetchall()
-        return jsonify(matches=[_match_json(r, t, conn()) for r in rows])
+        return jsonify(matches=[match_json(r) for r in rows])
 
     @app.get("/api/matches/<int:match_id>")
     def get_match(match_id):
-        row = conn().execute("SELECT * FROM matches WHERE id = ?", (match_id,)).fetchone()
-        if not row:
-            abort(404)
-        match = _match_json(row, thresholds(), conn())
+        match = match_json(match_row(match_id))
         match["history"] = [dict(r) for r in conn().execute(
             "SELECT at, kind, message FROM events WHERE match_id = ? ORDER BY id DESC LIMIT 50", (match_id,))]
         return jsonify(match=match)
@@ -201,6 +213,13 @@ def create_app(config=None):
             pass
         db.log_event(conn(), "deleted", f"Deleted {describe(row)}")
         return jsonify(deleted=match_id)
+
+    @app.put("/api/matches/<int:match_id>/reviewed")
+    def mark_reviewed(match_id):
+        reviewed = bool((request.get_json(silent=True) or {}).get("reviewed"))
+        auto = match_json(match_row(match_id))["review"]["auto"]
+        db.set_review_mark(conn(), match_id, None if reviewed == auto else int(reviewed))
+        return jsonify(review=match_json(match_row(match_id))["review"])
 
     @app.post("/api/matches/<int:match_id>/reanalyze")
     def reanalyze(match_id):
@@ -275,6 +294,14 @@ def create_app(config=None):
         decision = found[0]
         decision["practice"] = db.decision_practice_history(conn(), decision_id)
         return jsonify(decision=decision)
+
+    @app.post("/api/decisions/<int:decision_id>/seen")
+    def decision_seen(decision_id):
+        row = conn().execute("SELECT match_id FROM decisions WHERE id = ?", (decision_id,)).fetchone()
+        if not row:
+            abort(404)
+        db.mark_seen(conn(), decision_id)
+        return jsonify(match_id=row["match_id"], review=match_json(match_row(row["match_id"]))["review"])
 
     @app.post("/api/export")
     def export():

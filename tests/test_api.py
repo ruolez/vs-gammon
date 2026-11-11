@@ -153,6 +153,79 @@ class FilterDecisions(ApiTestCase):
         )
 
 
+class ReviewProgress(ApiTestCase):
+    def mistakes(self, match_id):
+        return self.client.get(f"/api/decisions?match_id={match_id}&min_error=0.03").get_json()["decisions"]
+
+    def review(self, match_id):
+        return self.client.get(f"/api/matches/{match_id}").get_json()["match"]["review"]
+
+    def mark(self, match_id, reviewed):
+        return self.client.put(f"/api/matches/{match_id}/reviewed", json={"reviewed": reviewed}).get_json()["review"]
+
+    def test_new_match_has_its_mistakes_unseen(self):
+        match_id = self.analysed_match()
+        self.assertEqual(self.review(match_id), {"mistakes": 3, "seen": 0, "auto": False, "reviewed": False, "mark": None})
+
+    def test_opening_every_mistake_marks_the_match_reviewed(self):
+        match_id = self.analysed_match()
+        answers = [self.client.post(f"/api/decisions/{d['id']}/seen").get_json() for d in self.mistakes(match_id)]
+        self.assertEqual(
+            ([a["review"]["seen"] for a in answers], answers[-1]["match_id"], self.review(match_id)["reviewed"]),
+            ([1, 2, 3], match_id, True),
+        )
+
+    def test_my_player_setting_limits_the_mistakes_counted(self):
+        match_id = self.analysed_match()
+        self.client.put("/api/settings", json={"me": "fishsoup"})
+        self.assertEqual(self.review(match_id)["mistakes"], 0)
+
+    def test_manual_mark_is_kept_only_while_it_differs_from_the_automatic_state(self):
+        match_id = self.analysed_match()
+        marked, unmarked = self.mark(match_id, True), self.mark(match_id, False)
+        for d in self.mistakes(match_id):
+            self.client.post(f"/api/decisions/{d['id']}/seen")
+        reopened = self.mark(match_id, False)
+        self.assertEqual(
+            [(r["mark"], r["reviewed"]) for r in (marked, unmarked, reopened)],
+            [(1, True), (None, False), (0, False)],
+        )
+
+    def test_seen_decisions_survive_reanalysis(self):
+        match_id = self.analysed_match()
+        first = self.mistakes(match_id)[0]
+        self.client.post(f"/api/decisions/{first['id']}/seen")
+        self.client.post(f"/api/matches/{match_id}/reanalyze")
+        jobs.process_next(self.conn, self.data_dir, analyse=fake_analyse)
+        self.assertEqual(self.review(match_id)["seen"], 1)
+
+    def test_unknown_decision_or_match_is_404(self):
+        self.assertEqual(
+            (self.client.post("/api/decisions/999/seen").status_code,
+             self.client.put("/api/matches/999/reviewed", json={"reviewed": True}).status_code),
+            (404, 404),
+        )
+
+    def test_decisions_of_several_matches(self):
+        first = self.analysed_match()
+        with open(os.path.join(FIXTURES, "galaxy_3pt.mat"), "rb") as f:
+            second = self.upload(name="again.mat", content=f.read() + b"\n")[0]["id"]
+        jobs.process_next(self.conn, self.data_dir, analyse=fake_analyse)
+        query = lambda ids: {d["match_id"] for d in self.client.get(
+            f"/api/decisions?match_id={ids}&min_error=0.03").get_json()["decisions"]}
+        self.assertEqual((query(f"{first},{second}"), query(str(second))), ({first, second}, {second}))
+
+    def test_xgid_puts_the_decider_at_the_bottom(self):
+        match_id = self.analysed_match()
+        decisions = self.client.get(f"/api/decisions?match_id={match_id}&include_forced=1").get_json()["decisions"]
+        fields = [d["xgid"].split(":") for d in decisions]
+        self.assertEqual(
+            [(f[3], f[5]) for f in fields],
+            [("-1" if d["kind"] == "take" else "1", str(d["score1"] if d["player"] == 1 else d["score2"]))
+             for d in decisions],
+        )
+
+
 class ExportPositions(ApiTestCase):
     def test_export_returns_zip_and_keeps_a_copy(self):
         match_id = self.analysed_match()

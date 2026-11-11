@@ -5,7 +5,7 @@ import sqlite3
 from zoneinfo import ZoneInfo
 
 from app.analysis import classify
-from app.position import build_xgid
+from app.position import build_xgid, seat_decider
 
 MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), "migrations")
 LOCAL_TZ = ZoneInfo(os.environ.get("TZ") or "UTC")
@@ -134,8 +134,9 @@ def requeue_interrupted(conn):
 
 def _xgid(d):
     dice = d["dice"] if d["kind"] == "checker" else None
-    return build_xgid(d["board"], d["on_roll"], dice, d["cube_value"], d["cube_owner"], d["score1"], d["score2"],
-                      d["match_length"], d["crawford_game"])
+    s = seat_decider(d)
+    return build_xgid(s["board"], s["on_roll"], dice, s["cube_value"], s["cube_owner"], s["score1"], s["score2"],
+                      s["match_length"], s["crawford_game"])
 
 
 def _decision_values(d):
@@ -189,21 +190,23 @@ def decision_from_row(row, thresholds):
     d["forced"] = bool(d["forced"])
     d["crawford_game"] = bool(d["crawford_game"])
     d["class"] = classify(d["error"], thresholds)
+    d["xgid"] = _xgid(d)
     return d
 
 
 MATCH_COLUMNS = "m.player1, m.player2, m.event_date, m.filename"
-FULL_SELECT = f"SELECT d.id, d.match_id, {', '.join('d.' + f for f in DECISION_FIELDS)}, {MATCH_COLUMNS} " \
+FULL_SELECT = f"SELECT d.id, d.match_id, d.seen_at, {', '.join('d.' + f for f in DECISION_FIELDS)}, {MATCH_COLUMNS} " \
               "FROM decisions d JOIN matches m ON m.id = d.match_id"
-LIST_SELECT = f"SELECT d.id, d.match_id, {LIST_COLUMNS}, {MATCH_COLUMNS} FROM decisions d JOIN matches m ON m.id = d.match_id"
+LIST_SELECT = f"SELECT d.id, d.match_id, d.seen_at, {LIST_COLUMNS}, {MATCH_COLUMNS} " \
+              "FROM decisions d JOIN matches m ON m.id = d.match_id"
 
 
-def decision_filters(match_id=None, player=None, player_name=None, kind=None, min_error=0.0, game_no=None,
+def decision_filters(match_ids=None, player=None, player_name=None, kind=None, min_error=0.0, game_no=None,
                      include_forced=False):
     where, params = ["d.error >= ?"], [min_error]
-    if match_id is not None:
-        where.append("d.match_id = ?")
-        params.append(match_id)
+    if match_ids:
+        where.append(f"d.match_id IN ({','.join('?' * len(match_ids))})")
+        params += list(match_ids)
     if player in (1, 2):
         where.append("d.player = ?")
         params.append(player)
@@ -240,6 +243,16 @@ def decisions_by_ids(conn, ids, thresholds, with_legal=False):
 def all_decisions_for_match(conn, match_id, thresholds):
     sql = f"{LIST_SELECT} WHERE d.match_id = ? ORDER BY d.game_no, d.move_no, d.id"
     return [decision_from_row(r, thresholds) for r in conn.execute(sql, (match_id,))]
+
+
+def mark_seen(conn, decision_id):
+    with conn:
+        conn.execute("UPDATE decisions SET seen_at = COALESCE(seen_at, ?) WHERE id = ?", (now_local(), decision_id))
+
+
+def set_review_mark(conn, match_id, mark):
+    with conn:
+        conn.execute("UPDATE matches SET review_mark = ? WHERE id = ?", (mark, match_id))
 
 
 def record_export(conn, count, filename):

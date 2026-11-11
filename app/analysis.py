@@ -61,6 +61,14 @@ def summarize(decisions, thresholds):
     return summary
 
 
+def review_state(decisions, thresholds, side, mark):
+    mistakes = [d for d in decisions if classify(d["error"], thresholds) and side in (None, d["player"])]
+    seen = sum(1 for d in mistakes if d["seen_at"])
+    auto = bool(mistakes) and seen == len(mistakes)
+    return {"mistakes": len(mistakes), "seen": seen, "auto": auto,
+            "reviewed": auto if mark is None else bool(mark), "mark": mark}
+
+
 def grade_checker(legal, index):
     if not 0 <= index < len(legal):
         raise ValueError("that move is not legal in this position")

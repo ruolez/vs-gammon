@@ -24,7 +24,12 @@
       </div>
     </header>
     <form class="toolbar" id="filters">
-      <div class="field"><label for="f-match">Match</label><select id="f-match"><option value="">All matches</option></select></div>
+      <div class="field"><label for="f-match">Match</label>
+        <div class="dropdown" id="match-dd">
+          <button type="button" class="dropdown-btn" id="f-match" aria-haspopup="true" aria-expanded="false" aria-controls="match-menu">All matches</button>
+          <div class="dropdown-panel" id="match-menu" hidden></div>
+        </div>
+      </div>
       <div class="field"><label for="f-player">Player</label><select id="f-player"><option value="">Both players</option></select></div>
       <div class="field"><label for="f-kind">Decisions</label><select id="f-kind"><option value="">Checker and cube</option><option value="checker">Checker plays</option><option value="cube">Cube decisions</option></select></div>
       <div class="field"><label for="f-severity">Show</label><select id="f-severity"><option value="doubtful">Doubtful or worse</option><option value="bad">Bad or worse</option><option value="very_bad">Very bad only</option><option value="all">Every decision</option><option value="custom">Error at least…</option></select></div>

@@ -1,7 +1,7 @@
 import random
 import unittest
 
-from app.position import build_xgid, flip_frame, onroll_frame, player1_frame
+from app.position import build_xgid, flip_frame, onroll_frame, player1_frame, seat_decider
 
 START_SIDE = (0, 0, 0, 0, 0, 5, 0, 3, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0)
 START_FRAME = [0, -2, 0, 0, 0, 0, 5, 0, 3, 0, 0, 0, -5, 5, 0, 0, 0, -3, 0, -5, 0, 0, 0, 0, 2, 0]
@@ -65,6 +65,51 @@ class Player1Frame(unittest.TestCase):
     def test_player2_on_roll_is_seen_from_player1(self):
         frame = player1_frame(BAR_PAIR, on_roll=2)
         self.assertEqual((frame[0], frame[24], frame[2], frame[13]), (-1, -1, 1, 3))
+
+
+def frame_with(points):
+    frame = [0] * 26
+    for index, count in points.items():
+        frame[index] = count
+    return frame
+
+
+def pips(frame, side):
+    if side == 1:
+        return sum(c * i for i, c in enumerate(frame) if c > 0)
+    return sum(-c * (25 - i) for i, c in enumerate(frame) if c < 0)
+
+
+SIDES = {"player1": "ann", "player2": "bob", "score1": 3, "score2": 1, "cube_value": 2}
+
+
+class SeatDecider(unittest.TestCase):
+    def test_player1_decision_is_unchanged(self):
+        decision = {**SIDES, "player": 1, "on_roll": 1, "cube_owner": 2, "board": START_FRAME}
+        self.assertEqual(seat_decider(decision), decision)
+
+    def test_player2_decision_swaps_sides(self):
+        decision = {**SIDES, "player": 2, "on_roll": 2, "cube_owner": 1,
+                    "board": frame_with({0: -1, 6: 2, 20: -3, 25: 1})}
+        self.assertEqual(
+            seat_decider(decision),
+            {"player1": "bob", "player2": "ann", "score1": 1, "score2": 3, "cube_value": 2, "player": 1,
+             "on_roll": 1, "cube_owner": 2, "board": frame_with({0: -1, 5: 3, 19: -2, 25: 1})},
+        )
+
+    def test_take_by_player2_puts_the_doubler_on_top(self):
+        decision = {**SIDES, "player": 2, "on_roll": 1, "cube_owner": 0, "board": START_FRAME}
+        self.assertEqual(
+            {k: v for k, v in seat_decider(decision).items() if k in ("player", "on_roll", "cube_owner")},
+            {"player": 1, "on_roll": 2, "cube_owner": 0},
+        )
+
+    def test_decider_keeps_pips_and_checkers_at_the_bottom(self):
+        rng = random.Random(5)
+        for _ in range(200):
+            board = onroll_frame(random_pair(rng))
+            seated = seat_decider({**SIDES, "player": 2, "on_roll": 2, "cube_owner": 0, "board": board})["board"]
+            self.assertEqual((pips(seated, 1), pips(seated, 2)), (pips(board, 2), pips(board, 1)))
 
 
 class BuildXgid(unittest.TestCase):
