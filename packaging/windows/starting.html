@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>VS Gammon</title>
+<link rel="icon" href="app/static/favicon.svg">
+<style>
+  :root { color-scheme: light dark; --bg: #f6f7f9; --text: #1b1f27; --muted: #5b6372; --track: #e3e6eb; --accent: #2563eb; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111318; --text: #e8eaee; --muted: #9aa1ad; --track: #262a33; --accent: #5b8cff; } }
+  html, body { height: 100%; margin: 0; }
+  body { display: grid; place-items: center; background: var(--bg); color: var(--text); font: 15px/1.5 "Segoe UI", system-ui, sans-serif; }
+  main { display: grid; justify-items: center; gap: 14px; padding: 24px; text-align: center; max-width: 420px; }
+  img { width: 72px; height: 72px; }
+  h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  p { margin: 0; color: var(--muted); }
+  .bar { width: 180px; height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
+  .bar span { display: block; width: 40%; height: 100%; border-radius: 2px; background: var(--accent); animation: slide 1.2s ease-in-out infinite; }
+  @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+  .stopped .bar { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <img src="app/static/favicon.svg" alt="">
+  <h1 id="title">Starting VS Gammon…</h1>
+  <p id="note">The first start can take a little longer.</p>
+  <div class="bar"><span></span></div>
+</main>
+<script>
+  const APP = "http://127.0.0.1:5565/";
+  const ru = (navigator.language || "").toLowerCase().startsWith("ru");
+  const text = ru
+    ? { title: "Запуск VS Gammon…", note: "Первый запуск может занять чуть больше времени.",
+        stoppedTitle: "VS Gammon не запустился", stopped: "Закройте это окно и откройте VS Gammon снова. Подробности в %LOCALAPPDATA%\\VS Gammon\\server.log" }
+    : { title: "Starting VS Gammon…", note: "The first start can take a little longer.",
+        stoppedTitle: "VS Gammon didn't start", stopped: "Close this window and open VS Gammon again. Details are in %LOCALAPPDATA%\\VS Gammon\\server.log" };
+  document.documentElement.lang = ru ? "ru" : "en";
+  document.getElementById("title").textContent = text.title;
+  document.getElementById("note").textContent = text.note;
+  const started = Date.now();
+  async function check() {
+    try {
+      await fetch(APP + "health", { mode: "no-cors", cache: "no-store" });
+      location.replace(APP);
+      return;
+    } catch (_) {}
+    if (Date.now() - started > 150000) {
+      document.body.classList.add("stopped");
+      document.getElementById("title").textContent = text.stoppedTitle;
+      document.getElementById("note").textContent = text.stopped;
+      return;
+    }
+    setTimeout(check, 400);
+  }
+  check();
+</script>
+</body>
+</html>

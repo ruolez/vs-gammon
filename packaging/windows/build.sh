@@ -58,6 +58,7 @@ in_docker bash -c "cp /scripts-win/launcher.c /scripts-win/launcher.rc . && \
 rm -rf "$OUT"
 mkdir -p "$OUT/engine/bin" "$OUT/engine/share/gnubg"
 cp "$BUILD/launcher.exe" "$OUT/VS Gammon.exe"
+cp "$HERE/starting.html" "$OUT/"
 rsync -a --exclude '__pycache__' --exclude '*.pyc' \
   --exclude 'Lib/test' --exclude 'Lib/idlelib' --exclude 'Lib/tkinter' --exclude 'Lib/turtledemo' \
   --exclude 'Lib/ensurepip' --exclude 'Lib/site-packages/pip*' --exclude 'tcl' --exclude 'include' --exclude 'libs' \

@@ -1,18 +1,26 @@
 /* VS Gammon for Windows: starts the bundled server (python\python.exe -m app.desktop) and shows it in an
- * Edge app window with its own profile. Closing that window closes the server's stdin, which stops it. */
+ * Edge app window with its own profile. The window opens on starting.html, which switches to the app once the
+ * server answers. The server runs while any Edge process uses that profile: Edge may hand the window to another
+ * process (one already running, or a relaunch after an update), so the process we start says nothing.
+ * When the last one is gone, the server's stdin is closed, which stops it. */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winsock2.h>
 #include <shellapi.h>
+#include <tlhelp32.h>
+#include <winternl.h>
 #include <stdio.h>
 #include <wchar.h>
 
 #define PORT 5565
 #define URL L"http://127.0.0.1:5565/"
-#define START_TIMEOUT_MS 60000
+#define START_TIMEOUT_MS 150000
+#define EDGE_APPEAR_MS 30000
+#define EDGE_GONE_CHECKS 3
 
 static wchar_t app_dir[MAX_PATH];
 static wchar_t data_dir[MAX_PATH];
+static wchar_t profile_dir[MAX_PATH];
 
 static void fail(const wchar_t *message) {
     wchar_t text[1024];
@@ -61,18 +69,74 @@ static int find_edge(wchar_t *path, DWORD size) {
     return 0;
 }
 
-static HANDLE open_window(void) {
-    wchar_t edge[MAX_PATH], command[4 * MAX_PATH];
-    if (!find_edge(edge, MAX_PATH)) return NULL;
-    swprintf(command, 4 * MAX_PATH,
-             L"\"%ls\" --app=%ls --user-data-dir=\"%ls\\edge\" --no-first-run --no-default-browser-check "
+static void starting_page_url(wchar_t *url, size_t size) {
+    wchar_t path[MAX_PATH];
+    char utf8[4 * MAX_PATH];
+    swprintf(path, MAX_PATH, L"%ls\\starting.html", app_dir);
+    WideCharToMultiByte(CP_UTF8, 0, path, -1, utf8, sizeof utf8, NULL, NULL);
+    size_t n = (size_t)swprintf(url, size, L"file:///");
+    for (const unsigned char *c = (const unsigned char *)utf8; *c && n + 4 < size; c++) {
+        if (*c == '\\') url[n++] = L'/';
+        else if ((*c >= 'A' && *c <= 'Z') || (*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') || strchr("-._~/:", *c))
+            url[n++] = *c;
+        else n += (size_t)swprintf(url + n, size - n, L"%%%02X", *c);
+    }
+    url[n] = 0;
+}
+
+static int open_window(void) {
+    wchar_t edge[MAX_PATH], url[6 * MAX_PATH], command[8 * MAX_PATH];
+    if (!find_edge(edge, MAX_PATH)) return 0;
+    starting_page_url(url, 6 * MAX_PATH);
+    swprintf(command, 8 * MAX_PATH,
+             L"\"%ls\" --app=\"%ls\" --user-data-dir=\"%ls\" --no-first-run --no-default-browser-check "
              L"--disable-features=msEdgeStartupBoost --window-size=1320,880",
-             edge, URL, data_dir);
+             edge, url, profile_dir);
     STARTUPINFOW si = {sizeof si};
     PROCESS_INFORMATION pi;
-    if (!CreateProcessW(NULL, command, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) return NULL;
+    if (!CreateProcessW(NULL, command, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) return 0;
     CloseHandle(pi.hThread);
-    return pi.hProcess;
+    CloseHandle(pi.hProcess);
+    return 1;
+}
+
+typedef NTSTATUS(NTAPI *query_process_fn)(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
+#define PROCESS_COMMAND_LINE_INFORMATION ((PROCESSINFOCLASS)60)
+
+static int uses_app_profile(DWORD pid, const wchar_t *marker) {
+    static query_process_fn query;
+    static BYTE buffer[70000];
+    static wchar_t line[32768];
+    if (!query) query = (query_process_fn)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationProcess");
+    if (!query) return 0;
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process) return 0;
+    int found = 0;
+    ULONG size = 0;
+    if (query(process, PROCESS_COMMAND_LINE_INFORMATION, buffer, sizeof buffer, &size) >= 0) {
+        UNICODE_STRING *cmd = (UNICODE_STRING *)buffer;
+        size_t chars = cmd->Length / sizeof(wchar_t);
+        if (chars >= 32768) chars = 32767;
+        wmemcpy(line, cmd->Buffer, chars);
+        line[chars] = 0;
+        found = wcsstr(_wcslwr(line), marker) != NULL;
+    }
+    CloseHandle(process);
+    return found;
+}
+
+static int app_window_open(void) {
+    wchar_t marker[MAX_PATH];
+    wcscpy(marker, profile_dir);
+    _wcslwr(marker);
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) return 0;
+    PROCESSENTRY32W entry = {sizeof entry};
+    int open = 0;
+    for (BOOL more = Process32FirstW(snapshot, &entry); more && !open; more = Process32NextW(snapshot, &entry))
+        open = _wcsicmp(entry.szExeFile, L"msedge.exe") == 0 && uses_app_profile(entry.th32ProcessID, marker);
+    CloseHandle(snapshot);
+    return open;
 }
 
 static void show_without_edge(void) {
@@ -91,17 +155,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE prev, PWSTR args, int show) {
     WSADATA wsa;
     WSAStartup(MAKEWORD(2, 2), &wsa);
 
+    GetModuleFileNameW(NULL, app_dir, MAX_PATH);
+    *wcsrchr(app_dir, L'\\') = 0;
+    swprintf(profile_dir, MAX_PATH, L"%ls\\edge", data_dir);
+
     HANDLE mutex = CreateMutexW(NULL, TRUE, L"Local\\VSGammonApp");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        HANDLE window = open_window();
-        if (window) CloseHandle(window);
-        else ShellExecuteW(NULL, L"open", URL, NULL, NULL, SW_SHOWNORMAL);
+        if (!open_window()) ShellExecuteW(NULL, L"open", URL, NULL, NULL, SW_SHOWNORMAL);
         return 0;
     }
     if (server_ready()) fail(L"Another program is already using port 5565, so VS Gammon cannot start.");
-
-    GetModuleFileNameW(NULL, app_dir, MAX_PATH);
-    *wcsrchr(app_dir, L'\\') = 0;
 
     wchar_t log_path[MAX_PATH], python[MAX_PATH], command[2 * MAX_PATH], path_var[32767], new_path[32767];
     swprintf(log_path, MAX_PATH, L"%ls\\server.log", data_dir);
@@ -130,17 +193,26 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE prev, PWSTR args, int show) {
     CloseHandle(stdin_read);
     CloseHandle(server.hThread);
 
+    int window = open_window();
     DWORD waited = 0;
     while (!server_ready()) {
         if (WaitForSingleObject(server.hProcess, 250) == WAIT_OBJECT_0) fail(L"The VS Gammon server stopped while starting.");
         waited += 250;
-        if (waited > START_TIMEOUT_MS) fail(L"The VS Gammon server did not start within a minute.");
+        if (waited > START_TIMEOUT_MS) {
+            TerminateProcess(server.hProcess, 1);
+            fail(L"The VS Gammon server did not start within two and a half minutes.");
+        }
     }
 
-    HANDLE window = open_window();
     if (window) {
-        WaitForSingleObject(window, INFINITE);
-        CloseHandle(window);
+        int seen = 0, gone = 0;
+        for (DWORD elapsed = 0;; elapsed += 1000) {
+            if (app_window_open()) seen = 1, gone = 0;
+            else if (seen ? ++gone >= EDGE_GONE_CHECKS : elapsed >= EDGE_APPEAR_MS) break;
+            if (WaitForSingleObject(server.hProcess, 1000) == WAIT_OBJECT_0)
+                fail(L"The VS Gammon server stopped unexpectedly. Close the window and open VS Gammon again.");
+        }
+        if (!seen) show_without_edge();
     } else {
         show_without_edge();
     }

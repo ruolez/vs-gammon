@@ -220,12 +220,21 @@ function renderBoardPanel(d) {
   $("board-panel").innerHTML = `
     <div class="position-title"><h2>${title}</h2>${d.kind === "checker" ? diceSvg(d.dice) : ""}${severityChip(d.class)}</div>
     <p class="small muted note-tight">${esc(d.player1)} ${t("vs")} ${esc(d.player2)} · ${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })} · ${d.match_length ? t("{a}–{b} to {n}", { a: d.score1, b: d.score2, n: d.match_length }) : t("money")} · ${cubeText(d)}</p>
-    <div id="board"></div>
+    <div class="board-nav">
+      <button type="button" class="nav-arrow" id="prev-dec" aria-label="${t("Previous position")}" title="${t("Previous position (←)")}">${icon("back")}</button>
+      <div id="board"></div>
+      <button type="button" class="nav-arrow" id="next-dec" aria-label="${t("Next position")}" title="${t("Next position (→)")}">${icon("forward")}</button>
+    </div>
     ${pills}
     <div class="tag-line" id="tag-line"></div>
     <div class="xgid"><code title="XGID">${esc(d.xgid)}</code><button class="btn sm ghost" id="copy-xgid">${icon("copy")}${t("Copy XGID")}</button></div>`;
   drawBoard(d);
   renderTagLine(d);
+  const index = state.decisions.findIndex((x) => x.id === d.id);
+  $("prev-dec").disabled = index <= 0;
+  $("next-dec").disabled = index < 0 || index >= state.decisions.length - 1;
+  $("prev-dec").addEventListener("click", () => step(-1));
+  $("next-dec").addEventListener("click", () => step(1));
   $("board-panel").querySelectorAll("[data-arrow]").forEach((el) => el.addEventListener("click", () => {
     const k = el.dataset.arrow;
     if (state.candidate !== null) state.candidate = null;
@@ -542,9 +551,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!$("match-menu").hidden || state.tagFilter.isOpen() || Tags.picker || document.querySelector("dialog[open]")) return;
     const tag = document.activeElement.tagName;
     if (["SELECT", "TEXTAREA"].includes(tag) || (tag === "INPUT" && document.activeElement.type !== "checkbox")) return;
-    if (ev.key === "ArrowDown" || ev.key === "j") { ev.preventDefault(); step(1); }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowRight" || ev.key === "j") { ev.preventDefault(); step(1); }
     if ((ev.key === "t" || ev.key === "T") && $("tag-line")) { ev.preventDefault(); $("tag-line").querySelector(".tag-btn")?.click(); }
-    if (ev.key === "ArrowUp" || ev.key === "k") { ev.preventDefault(); step(-1); }
+    if (ev.key === "ArrowUp" || ev.key === "ArrowLeft" || ev.key === "k") { ev.preventDefault(); step(-1); }
     if (ev.key === " " && state.current) {
       ev.preventDefault();
       state.selected.has(state.current) ? state.selected.delete(state.current) : state.selected.add(state.current);

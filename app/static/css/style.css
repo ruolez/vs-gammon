@@ -512,7 +512,8 @@ dialog.modal[open] { display: flex; flex-direction: column; animation: dialog-in
 .mm-review.done { background: var(--good-soft); color: var(--good); box-shadow: none; }
 .mm-review .icon { width: 12px; height: 12px; }
 .review { display: grid; grid-template-columns: 18.75rem minmax(0, 1fr) 292px; gap: 16px; align-items: start; }
-.review #board { max-width: max(360px, calc((100vh - 270px) * 1.27)); margin: 0 auto; }
+.review .board-nav { max-width: calc(max(360px, calc((100vh - 270px) * 1.27)) + 92px); margin: 0 auto; }
+.review .board-nav #board { width: 100%; }
 .review .list { display: flex; flex-direction: column; height: calc(100vh - 168px); min-height: 480px; overflow: hidden; position: sticky; top: 16px; }
 .list-head { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); min-height: 48px; }
 .list-head .count-text { white-space: nowrap; color: var(--text-3); font-size: 0.75rem; }
@@ -830,7 +831,7 @@ dialog.confirm footer { border-top: 0; justify-content: flex-end; }
 .stage .position-meta .tag-line { margin-left: 2px; }
 @media (max-width: 640px) {
   .board-nav { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .board-nav .stage-board { grid-column: 1 / -1; grid-row: 1; }
+  .board-nav .stage-board, .board-nav #board { grid-column: 1 / -1; grid-row: 1; }
   .nav-arrow { width: 100%; height: 40px; }
   .tm-row { grid-template-columns: 30px minmax(0, 1fr) 30px; }
   .tm-row .tm-count { grid-column: 2; }
