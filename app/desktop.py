@@ -1,4 +1,5 @@
-"""Entry point of the macOS app: serves the web app on loopback only, for as long as the shell lives."""
+"""Entry point of the macOS and Windows apps: serves the web app on loopback only, for as long as the shell lives."""
+import ntpath
 import os
 import sys
 import threading
@@ -37,6 +38,20 @@ def desktop_environment(home, root):
     }
 
 
+def windows_environment(home, local_app_data, root):
+    support = ntpath.join(local_app_data, "VS Gammon")
+    return {
+        "DATA_DIR": ntpath.join(support, "data"),
+        "EXPORT_DIR": ntpath.join(support, "exports"),
+        "HOST_HOME": home,
+        "HOST_ROOT": home,
+        "GNUBG_BIN": ntpath.join(root, "engine", "bin", "gnubg.exe"),
+        "GNUBG_DATADIR": ntpath.join(root, "engine", "share"),
+        "GNUBG_PKGDATADIR": ntpath.join(root, "engine", "share", "gnubg"),
+        "PYTHONHOME": ntpath.join(root, "python"),
+    }
+
+
 def exit_when_stdin_closes(stream, on_close):
     def wait():
         stream.read()
@@ -47,7 +62,12 @@ def exit_when_stdin_closes(stream, on_close):
 
 def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for key, value in desktop_environment(os.path.expanduser("~"), root).items():
+    home = os.path.expanduser("~")
+    if os.name == "nt":
+        environment = windows_environment(home, os.environ.get("LOCALAPPDATA") or os.path.join(home, "AppData", "Local"), root)
+    else:
+        environment = desktop_environment(home, root)
+    for key, value in environment.items():
         os.environ.setdefault(key, value)
 
     from waitress import serve

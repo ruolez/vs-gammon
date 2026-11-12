@@ -56,6 +56,24 @@ class DesktopEnvironment(unittest.TestCase):
         )
 
 
+class WindowsEnvironment(unittest.TestCase):
+    def test_data_goes_to_local_app_data_and_the_engine_is_in_the_app_folder(self):
+        home, local, root = r"C:\Users\someone", r"C:\Users\someone\AppData\Local", r"C:\Apps\VS Gammon"
+        self.assertEqual(
+            desktop.windows_environment(home, local, root),
+            {
+                "DATA_DIR": r"C:\Users\someone\AppData\Local\VS Gammon\data",
+                "EXPORT_DIR": r"C:\Users\someone\AppData\Local\VS Gammon\exports",
+                "HOST_HOME": home,
+                "HOST_ROOT": home,
+                "GNUBG_BIN": r"C:\Apps\VS Gammon\engine\bin\gnubg.exe",
+                "GNUBG_DATADIR": r"C:\Apps\VS Gammon\engine\share",
+                "GNUBG_PKGDATADIR": r"C:\Apps\VS Gammon\engine\share\gnubg",
+                "PYTHONHOME": r"C:\Apps\VS Gammon\python",
+            },
+        )
+
+
 class ExitWhenStdinCloses(unittest.TestCase):
     def test_calls_back_once_the_stream_ends(self):
         closed = threading.Event()

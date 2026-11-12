@@ -279,7 +279,7 @@ def create_app(config=None):
         player = request.args.get("player_name") or default_player()
         if not player:
             return jsonify(player=None, matches=[], empty=True)
-        today = datetime.datetime.now(db.LOCAL_TZ).date().isoformat()
+        today = db.local_now(db.LOCAL_TZ).date().isoformat()
         return jsonify(build_dashboard(conn(), thresholds(), player, today))
 
     @app.get("/api/decisions")

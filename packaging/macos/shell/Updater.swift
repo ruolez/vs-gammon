@@ -28,11 +28,11 @@ final class Updater {
                     return completion(nil, error?.localizedDescription ?? "bad response")
                 }
                 let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
-                func asset(_ suffix: String) -> URL? {
-                    assets.first { ($0["name"] as? String)?.hasSuffix(suffix) == true }.flatMap { ($0["browser_download_url"] as? String).flatMap(URL.init) }
+                func asset(_ name: String) -> URL? {
+                    assets.first { ($0["name"] as? String) == name }.flatMap { ($0["browser_download_url"] as? String).flatMap(URL.init) }
                 }
                 let newer = Self.isNewer(version, than: Self.currentVersion)
-                if newer, let zip = asset(".zip"), let signature = asset(".zip.sig") {
+                if newer, let zip = asset("VS-Gammon-\(version).zip"), let signature = asset("VS-Gammon-\(version).zip.sig") {
                     self.found = Release(version: version, zip: zip, signature: signature)
                     completion(["current": Self.currentVersion, "latest": version, "available": true], nil)
                 } else {

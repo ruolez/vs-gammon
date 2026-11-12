@@ -20,4 +20,5 @@ __pycache__/
 
 # macOS app build output
 /packaging/macos/build/
+/packaging/windows/build/
 /dist/

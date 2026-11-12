@@ -8,7 +8,15 @@ from app.analysis import classify
 from app.position import build_xgid, seat_decider
 
 MIGRATIONS_DIR = os.path.join(os.path.dirname(__file__), "migrations")
-LOCAL_TZ = ZoneInfo(os.environ.get("TZ") or "UTC")
+def local_zone(name):
+    return ZoneInfo(name) if name else None
+
+
+def local_now(zone):
+    return datetime.datetime.now(zone).astimezone(zone)
+
+
+LOCAL_TZ = local_zone(os.environ.get("TZ"))
 
 PRESETS = {
     "gnubg": {"doubtful": 0.03, "bad": 0.06, "very_bad": 0.12},
@@ -33,7 +41,7 @@ LIST_COLUMNS = ", ".join(f"d.{f}" for f in DECISION_FIELDS if f != "legal")
 
 
 def now_local():
-    return datetime.datetime.now(LOCAL_TZ).isoformat(timespec="seconds")
+    return local_now(LOCAL_TZ).isoformat(timespec="seconds")
 
 
 def connect(path):
