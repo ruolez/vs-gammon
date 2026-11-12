@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
-# Builds VS Gammon for Windows 11 ARM64 on this Mac:
-# dist/windows/VS Gammon/ (run VS Gammon.exe) and dist/release/VS-Gammon-<version>-windows-arm64.zip.
-# The engine is cross-compiled in Docker (llvm-mingw); Python is python-build-standalone for aarch64-pc-windows-msvc.
+# Builds VS Gammon for Windows on this Mac: build.sh arm64|x64 [--engine]
+# dist/windows/<arch>/VS Gammon/ (run VS Gammon.exe) and dist/release/VS-Gammon-<version>-windows-<arch>.zip.
+# The engine is cross-compiled in Docker (llvm-mingw); Python is python-build-standalone's Windows build.
 # Needs packaging/macos/build (build-deps.sh, build-gnubg.sh) for the source archives, engine data and a host Python.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 source "$HERE/versions.env"
+ARCH="${1:-}"
+case "$ARCH" in
+  arm64) HOST=aarch64-w64-mingw32; PIP_PLATFORM=win_arm64; PYTHON_WIN_URL="$PYTHON_WIN_ARM64_URL"; PYTHON_WIN_SHA256="$PYTHON_WIN_ARM64_SHA256" ;;
+  x64) HOST=x86_64-w64-mingw32; PIP_PLATFORM=win_amd64; PYTHON_WIN_URL="$PYTHON_WIN_X64_URL"; PYTHON_WIN_SHA256="$PYTHON_WIN_X64_SHA256" ;;
+  *) echo "usage: build.sh arm64|x64 [--engine]" >&2; exit 1 ;;
+esac
 VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
 MAC="$ROOT/packaging/macos/build"
-BUILD="$HERE/build"
-OUT="$ROOT/dist/windows/VS Gammon"
-ZIP="$ROOT/dist/release/VS-Gammon-$VERSION-windows-arm64.zip"
+BUILD="$HERE/build/$ARCH"
+OUT="$ROOT/dist/windows/$ARCH/VS Gammon"
+ZIP="$ROOT/dist/release/VS-Gammon-$VERSION-windows-$ARCH.zip"
 HOST_PY="$MAC/python/bin/python3"
 IMAGE=vs-gammon-wincross
 [[ -x "$HOST_PY" && -f "$MAC/engine/share/gnubg/gnubg.wd" ]] || { echo "run packaging/macos/build-deps.sh and build-gnubg.sh first" >&2; exit 1; }
@@ -19,9 +25,9 @@ mkdir -p "$BUILD" "$ROOT/dist/release"
 
 docker build -q -t "$IMAGE" "$HERE" >/dev/null
 in_docker() {
-  docker run --rm -v "$BUILD:/work" -v "$BUILD/python:/python:ro" -v "$MAC/src:/src:ro" \
+  docker run --rm -e ARCH="$ARCH" -v "$BUILD:/work" -v "$BUILD/python:/python:ro" -v "$MAC/src:/src:ro" \
     -v "$ROOT/packaging/macos/versions.env:/scripts/macos-versions.env:ro" -v "$HERE:/scripts-win:ro" \
-    -v "$HERE/build-engine.sh:/scripts/build-engine.sh:ro" -v "$HERE/cross-arm64.ini:/scripts/cross-arm64.ini:ro" \
+    -v "$HERE/build-engine.sh:/scripts/build-engine.sh:ro" -v "$HERE/cross-$ARCH.ini:/scripts/cross.ini:ro" \
     -w /work "$IMAGE" "$@"
 }
 
@@ -31,12 +37,12 @@ if [[ ! -f "$BUILD/python/python.exe" ]]; then
   echo "$PYTHON_WIN_SHA256  $archive" | shasum -a 256 -c - >/dev/null
   tar xzf "$archive" -C "$BUILD"
 fi
-[[ -f "$BUILD/engine/bin/gnubg.exe" && "${1:-}" != "--engine" ]] || in_docker bash /scripts/build-engine.sh > "$BUILD/engine.log" 2>&1 \
+[[ -f "$BUILD/engine/bin/gnubg.exe" && "${2:-}" != "--engine" ]] || in_docker bash /scripts/build-engine.sh > "$BUILD/engine.log" 2>&1 \
   || { tail -30 "$BUILD/engine.log"; exit 1; }
 
 rm -rf "$BUILD/site-packages"
 "$HOST_PY" -m pip install --quiet --disable-pip-version-check --target "$BUILD/site-packages" \
-  --platform win_arm64 --python-version 3.13 --implementation cp --abi cp313 --only-binary=:all: \
+  --platform $PIP_PLATFORM --python-version 3.13 --implementation cp --abi cp313 --only-binary=:all: \
   -r "$ROOT/packaging/macos/requirements.txt"
 
 work="$(mktemp -d)"
@@ -45,9 +51,9 @@ qlmanage -t -s 1024 -o "$work" "$ROOT/assets/icon.svg" >/dev/null 2>&1
 rm -rf "$work"
 IFS=. read -r major minor patch <<< "$VERSION"
 in_docker bash -c "cp /scripts-win/launcher.c /scripts-win/launcher.rc . && \
-  aarch64-w64-mingw32-windres -DVER_MAJOR=$major -DVER_MINOR=$minor -DVER_PATCH=$patch -DVER_TEXT='\\\"$VERSION\\\"' launcher.rc -O coff -o launcher.res.o && \
-  aarch64-w64-mingw32-clang -O2 -municode -mwindows -Wall -o launcher.exe launcher.c launcher.res.o -lws2_32 -lshell32 -ladvapi32 && \
-  aarch64-w64-mingw32-strip launcher.exe"
+  $HOST-windres -DVER_MAJOR=$major -DVER_MINOR=$minor -DVER_PATCH=$patch -DVER_TEXT='\\\"$VERSION\\\"' launcher.rc -O coff -o launcher.res.o && \
+  $HOST-clang -O2 -municode -mwindows -Wall -o launcher.exe launcher.c launcher.res.o -lws2_32 -lshell32 -ladvapi32 && \
+  $HOST-strip launcher.exe"
 
 rm -rf "$OUT"
 mkdir -p "$OUT/engine/bin" "$OUT/engine/share/gnubg"
@@ -69,6 +75,6 @@ How it is built here: https://github.com/ruolez/vs-gammon/tree/main/packaging/wi
 NOTE
 
 rm -f "$ZIP"
-(cd "$ROOT/dist/windows" && ditto -c -k --keepParent "VS Gammon" "$ZIP")
+(cd "$ROOT/dist/windows/$ARCH" && ditto -c -k --keepParent "VS Gammon" "$ZIP")
 du -sh "$OUT" "$ZIP"
 echo "built $OUT"

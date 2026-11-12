@@ -1,4 +1,4 @@
-# Cross-compile toolchain for the Windows ARM64 engine: llvm-mingw (UCRT, like the official Windows Python) + build tools.
+# Cross-compile toolchain for the Windows ARM64 and x64 engines: llvm-mingw (UCRT, like the official Windows Python) + build tools.
 FROM mstorsjo/llvm-mingw:latest
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ninja-build pkg-config flex bison python3 python3-pip make xz-utils ca-certificates curl patch file \
