@@ -67,3 +67,36 @@ class AnalyseBadFile(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(gnubg_available(), "gnubg is only installed in the container")
+class DeeperAnalysisWithGnubg(unittest.TestCase):
+    MAT = os.path.join(FIXTURES, "galaxy_3pt.mat")
+    CHECKER = {"game_no": 1, "move_no": 3, "kind": "checker", "player": 1}
+
+    def run_job(self, mode, settings, decision=None, moves=None):
+        from app.engine import deep
+        from app.engine.runner import run_deep
+        lines = []
+        job = {"mode": mode, "decision": decision or self.CHECKER, "threads": 4, "base_plies": 2, "moves": moves,
+               "settings": deep.eval_settings(settings) if mode == "eval" else deep.rollout_settings(settings)}
+        result = run_deep(self.MAT, job, on_line=lambda line: lines.append(deep.parse_progress(line)))
+        return result["decision"], [p for p in lines if p]
+
+    def test_three_ply_evaluates_the_top_moves_deeper(self):
+        decision, _ = self.run_job("eval", {"checker": {"plies": 3}, "moves": {"count": 3, "within": 0.2}})
+        depths = [c.get("plies") for c in decision["candidates"]]
+        self.assertEqual((depths[:3], decision["action"]), ([3, 3, 3], "18/13"))
+
+    def test_rollout_of_chosen_moves_reports_progress(self):
+        moves = [[[13, 9], [6, 5]], [[18, 14], [14, 13]]]
+        decision, progress = self.run_job("rollout", {"trials": 72, "seed": 1, "checker": {"plies": 0},
+                                                      "cube": {"plies": 0}}, moves=moves)
+        rolled = sorted(c["move"] for c in decision["candidates"] if c.get("rollout"))
+        self.assertEqual((rolled, {c["rollout"]["trials"] for c in decision["candidates"] if c.get("rollout")},
+                          progress[-1]), (["13/9 6/5", "18/13"], {72}, {"done": 72, "total": 72}))
+
+    def test_cube_rollout(self):
+        decision, _ = self.run_job("rollout", {"trials": 36, "seed": 1, "checker": {"plies": 0}, "cube": {"plies": 0}},
+                                   decision={"game_no": 1, "move_no": 15, "kind": "cube", "player": 1})
+        self.assertEqual((decision["action"], decision["cube"]["rollout"]["trials"]), ("Double", 36))

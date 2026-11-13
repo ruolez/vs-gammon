@@ -246,6 +246,8 @@ def store_analysis(conn, match_id, result):
             "SELECT id, game_no, move_no, kind, player FROM decisions WHERE match_id = ?", (match_id,))
             if (row["game_no"], row["move_no"], row["kind"], row["player"]) not in keep]
         conn.executemany("DELETE FROM decisions WHERE id = ?", [(i,) for i in stale])
+    reapply_deep_results(conn, match_id)
+    with conn:
         conn.execute(
             """UPDATE matches SET status = 'done', error = NULL, plies = ?, analysis_seconds = ?, analyzed_at = ?,
                    player1 = COALESCE(player1, ?), player2 = COALESCE(player2, ?), match_length = ?
@@ -270,7 +272,8 @@ def decision_from_row(row, thresholds):
 
 
 MATCH_COLUMNS = "m.player1, m.player2, m.event_date, m.filename, " \
-                "(SELECT group_concat(tag_id) FROM position_tags WHERE position_key = d.position_key) AS tag_ids"
+                "(SELECT group_concat(tag_id) FROM position_tags WHERE position_key = d.position_key) AS tag_ids, " \
+                "(SELECT mode FROM deep_results WHERE decision_id = d.id) AS deep_mode"
 FULL_SELECT = f"SELECT d.id, d.match_id, d.seen_at, {', '.join('d.' + f for f in DECISION_FIELDS)}, {MATCH_COLUMNS} " \
               "FROM decisions d JOIN matches m ON m.id = d.match_id"
 LIST_SELECT = f"SELECT d.id, d.match_id, d.seen_at, {LIST_COLUMNS}, {MATCH_COLUMNS} " \
@@ -566,3 +569,146 @@ def decision_practice_history(conn, decision_id):
            JOIN decisions d ON d.id = a.decision_id
            WHERE d.position_key = (SELECT position_key FROM decisions WHERE id = ?) ORDER BY a.id DESC LIMIT 20""",
         (decision_id,))]
+
+
+DEEP_FIELDS = ("candidates", "played_index", "best", "error", "cube", "legal", "forced")
+ACTIVE_DEEP = ("queued", "running", "cancelling")
+
+
+def _deep_job(row):
+    if not row:
+        return None
+    job = dict(row)
+    job["settings"] = json.loads(job["settings"])
+    job["moves"] = json.loads(job["moves"]) if job["moves"] else None
+    return job
+
+
+def create_deep_job(conn, decision_id, mode, settings, moves=None):
+    with conn:
+        cur = conn.execute(
+            "INSERT INTO deep_jobs (decision_id, mode, settings, moves, status, created_at) VALUES (?, ?, ?, ?, 'queued', ?)",
+            (decision_id, mode, json.dumps(settings), json.dumps(moves) if moves else None, now_local()))
+    return cur.lastrowid
+
+
+def deep_job(conn, job_id):
+    return _deep_job(conn.execute("SELECT * FROM deep_jobs WHERE id = ?", (job_id,)).fetchone())
+
+
+def active_deep_job(conn, decision_id):
+    marks = ",".join("?" * len(ACTIVE_DEEP))
+    return _deep_job(conn.execute(
+        f"SELECT * FROM deep_jobs WHERE decision_id = ? AND status IN ({marks}) ORDER BY id LIMIT 1",
+        (decision_id, *ACTIVE_DEEP)).fetchone())
+
+
+def list_deep_jobs(conn, active_only=True, limit=50):
+    if active_only:
+        marks = ",".join("?" * len(ACTIVE_DEEP))
+        rows = conn.execute(f"SELECT * FROM deep_jobs WHERE status IN ({marks}) ORDER BY id", ACTIVE_DEEP)
+    else:
+        rows = conn.execute("SELECT * FROM deep_jobs ORDER BY id DESC LIMIT ?", (limit,))
+    return [_deep_job(r) for r in rows]
+
+
+def claim_deep_job(conn):
+    with conn:
+        row = conn.execute("SELECT id FROM deep_jobs WHERE status = 'queued' ORDER BY id LIMIT 1").fetchone()
+        if not row:
+            return None
+        conn.execute("UPDATE deep_jobs SET status = 'running', started_at = ? WHERE id = ?", (now_local(), row["id"]))
+    return deep_job(conn, row["id"])
+
+
+def deep_job_progress(conn, job_id, done, total):
+    with conn:
+        conn.execute("UPDATE deep_jobs SET done = ?, total = ? WHERE id = ?", (done, total, job_id))
+
+
+def cancel_deep_job(conn, job_id):
+    with conn:
+        conn.execute("UPDATE deep_jobs SET status = 'cancelled', finished_at = ? WHERE id = ? AND status = 'queued'",
+                     (now_local(), job_id))
+        conn.execute("UPDATE deep_jobs SET status = 'cancelling' WHERE id = ? AND status = 'running'", (job_id,))
+
+
+def deep_job_cancelling(conn, job_id):
+    row = conn.execute("SELECT status FROM deep_jobs WHERE id = ?", (job_id,)).fetchone()
+    return row is None or row["status"] == "cancelling"
+
+
+def finish_deep_job(conn, job_id, status, error=None, seconds=None):
+    with conn:
+        conn.execute("UPDATE deep_jobs SET status = ?, error = ?, seconds = ?, finished_at = ? WHERE id = ?",
+                     (status, error, seconds, now_local(), job_id))
+
+
+def interrupt_deep_jobs(conn):
+    marks = ",".join("?" * len(ACTIVE_DEEP))
+    with conn:
+        conn.execute(f"UPDATE deep_jobs SET status = 'cancelled', error = 'VS Gammon was closed while this ran', "
+                     f"finished_at = ? WHERE status IN ({marks})", (now_local(), *ACTIVE_DEEP))
+
+
+def _decision_fields(conn, decision_id):
+    row = conn.execute(f"SELECT {', '.join(DEEP_FIELDS)} FROM decisions WHERE id = ?", (decision_id,)).fetchone()
+    return {f: row[f] for f in DEEP_FIELDS} if row else None
+
+
+def _encode_fields(fields):
+    return {f: json.dumps(fields.get(f)) if f in JSON_COLUMNS else (int(bool(fields.get(f))) if f == "forced" else fields.get(f))
+            for f in DEEP_FIELDS}
+
+
+def _write_fields(conn, decision_id, stored):
+    conn.execute(f"UPDATE decisions SET {', '.join(f'{f} = ?' for f in DEEP_FIELDS)} WHERE id = ?",
+                 [stored[f] for f in DEEP_FIELDS] + [decision_id])
+
+
+def apply_deep_result(conn, decision_id, job, decision, seconds):
+    """Puts a deeper analysis on the decision. The analysis it replaces is kept the first time, so the decision can
+    go back to it."""
+    stored = _encode_fields(decision)
+    existing = conn.execute("SELECT original FROM deep_results WHERE decision_id = ?", (decision_id,)).fetchone()
+    original = existing["original"] if existing else json.dumps(_decision_fields(conn, decision_id))
+    with conn:
+        conn.execute(
+            """INSERT INTO deep_results (decision_id, job_id, mode, settings, result, original, seconds, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(decision_id) DO UPDATE SET job_id = excluded.job_id, mode = excluded.mode,
+                   settings = excluded.settings, result = excluded.result, seconds = excluded.seconds,
+                   created_at = excluded.created_at""",
+            (decision_id, job["id"], job["mode"], json.dumps(job["settings"]), json.dumps(stored), original, seconds,
+             now_local()))
+        _write_fields(conn, decision_id, stored)
+
+
+def deep_result(conn, decision_id):
+    row = conn.execute("SELECT job_id, mode, settings, seconds, created_at FROM deep_results WHERE decision_id = ?",
+                       (decision_id,)).fetchone()
+    if not row:
+        return None
+    return {**dict(row), "settings": json.loads(row["settings"])}
+
+
+def clear_deep_result(conn, decision_id):
+    row = conn.execute("SELECT original FROM deep_results WHERE decision_id = ?", (decision_id,)).fetchone()
+    if not row:
+        return False
+    with conn:
+        _write_fields(conn, decision_id, json.loads(row["original"]))
+        conn.execute("DELETE FROM deep_results WHERE decision_id = ?", (decision_id,))
+    return True
+
+
+def reapply_deep_results(conn, match_id):
+    """After a match is analysed again, its decisions' deeper results go back on top of the fresh analysis."""
+    rows = conn.execute(
+        """SELECT r.decision_id, r.result FROM deep_results r JOIN decisions d ON d.id = r.decision_id
+           WHERE d.match_id = ?""", (match_id,)).fetchall()
+    with conn:
+        for row in rows:
+            conn.execute("UPDATE deep_results SET original = ? WHERE decision_id = ?",
+                         (json.dumps(_decision_fields(conn, row["decision_id"])), row["decision_id"]))
+            _write_fields(conn, row["decision_id"], json.loads(row["result"]))

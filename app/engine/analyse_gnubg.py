@@ -8,19 +8,8 @@ sys.path.insert(0, os.environ.get("GA_APP_ROOT", "/srv"))
 
 import gnubg  # noqa: E402  (only importable inside gnubg -p)
 
+from app.engine.gnubg_helpers import GnubgHelpers  # noqa: E402
 from app.engine.walk import walk_match  # noqa: E402
-
-
-class GnubgHelpers:
-    def board_pair(self, position_id):
-        return gnubg.positionfromid(position_id)
-
-    def move_text(self, move, board_pair):
-        return gnubg.movetupletostring(tuple(tuple(step) for step in move), board_pair)
-
-    def mwc_to_emg(self, mwc, cube, owner, on_roll, match_length, score, crawford):
-        info = gnubg.cubeinfo(cube, owner, on_roll, match_length, tuple(score), 1 if crawford else 0, 0)
-        return gnubg.mwc2eq(mwc, info)
 
 
 def analyse(path, plies, threads):

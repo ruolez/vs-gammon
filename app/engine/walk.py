@@ -29,25 +29,58 @@ def best_cube_action(nd, dt, dp):
     return "No double, take"
 
 
-def _candidates(analysis, played_move, move_text, board):
-    evaluated = analysis["moves"]
-    full = [m for m in evaluated if "evalcontext" not in m]
-    played = next((m for m in evaluated if m["move"] == played_move), evaluated[analysis["imove"]])
-    ranked = sorted(full if played in full else full + [played], key=lambda m: -m["score"])
-    kept = ranked[:MAX_CANDIDATES]
+def rollout_equity(m, to_emg):
+    """A rolled-out move's equity and standard error, as gnubg scores it: cubeful results are match winning
+    chances turned into equity, cubeless ones are already an equity."""
+    if m.get("cubeful", True):
+        value = to_emg(m["cubeful-eq"])
+        return value, abs(to_emg(m["cubeful-eq"] + m["cubeful-eq-std"]) - value)
+    return m["match-eq"], m["match-eq-std"]
+
+
+def _depth(m, base_plies):
+    context = m.get("evalcontext") or {}
+    return context.get("plies", base_plies)
+
+
+def _row(m, move_text, board, to_emg, base_plies):
+    row = {"move": move_text(m["move"], board), "steps": m["move"], "probs": m["probs"]}
+    if m.get("type") == "rollout":
+        row["equity"], std = rollout_equity(m, to_emg)
+        row["rollout"] = {"trials": m["trials"], "std": std, "probs_std": m.get("probs-std")}
+    else:
+        row["equity"] = m["score"]
+        if base_plies is not None:
+            row["plies"] = _depth(m, base_plies)
+    return row
+
+
+def _full(m, base_plies):
+    if base_plies is None or m.get("type") == "rollout":
+        return "evalcontext" not in m
+    return _depth(m, base_plies) >= base_plies
+
+
+def _candidates(analysis, played_move, move_text, board, to_emg=lambda v: v, base_plies=None):
+    evaluated = [_row(m, move_text, board, to_emg, base_plies) | {"_full": _full(m, base_plies), "_move": m["move"]}
+                 for m in analysis["moves"]]
+    full = [m for m in evaluated if m["_full"]]
+    played = next((m for m in evaluated if m["_move"] == played_move), evaluated[analysis["imove"]])
+    ranked = sorted(full if played in full else full + [played], key=lambda m: -m["equity"])
+    kept = ranked if base_plies is not None else ranked[:MAX_CANDIDATES]
     if played not in kept:
         kept.append(played)
-    rows = [{"move": move_text(m["move"], board), "steps": m["move"], "equity": m["score"], "probs": m["probs"]}
-            for m in kept]
+    rows = [{k: v for k, v in m.items() if not k.startswith("_")} for m in kept]
     legal = sorted(
-        ({"steps": m["move"], "text": move_text(m["move"], board), "equity": m["score"], "full": "evalcontext" not in m}
-         for m in evaluated),
+        ({"steps": m["steps"], "text": m["move"], "equity": m["equity"], "full": m["_full"]} for m in evaluated),
         key=lambda m: -m["equity"],
     )
     return rows, kept.index(played), len(evaluated) == 1, legal
 
 
-def walk_match(match, helpers):
+def walk_match(match, helpers, with_records=False, base_plies=None):
+    """base_plies: the depth the match was analysed at. When given, every candidate is kept and labelled with the
+    depth it was evaluated at (used after a deeper analysis of one decision)."""
     info = match["match-info"]
     match_length = info.get("match-length", 0)
     games, decisions = [], []
@@ -81,9 +114,23 @@ def walk_match(match, helpers):
         def cube_equities(analysis, on_roll):
             nd = to_emg(analysis["nd-cubeful-eq"], on_roll)
             dt = to_emg(analysis["dt-cubeful-eq"], on_roll)
-            return {"nd": nd, "dt": dt, "dp": DOUBLE_PASS, "probs": analysis.get("probs")}
+            cube = {"nd": nd, "dt": dt, "dp": DOUBLE_PASS, "probs": analysis.get("probs", analysis.get("nd-probs"))}
+            if base_plies is not None and analysis.get("type") != "rollout":
+                cube["plies"] = (analysis.get("eval-context") or {}).get("plies", base_plies)
+            if analysis.get("type") == "rollout":
+                cube["rollout"] = {
+                    "trials": analysis["trials"],
+                    "nd_std": abs(to_emg(analysis["nd-cubeful-eq"] + analysis["nd-cubeful-eq-std"], on_roll) - nd),
+                    "dt_std": abs(to_emg(analysis["dt-cubeful-eq"] + analysis["dt-cubeful-eq-std"], on_roll) - dt),
+                }
+            return cube
 
-        for record in game["game"]:
+        def found(decision, record_index):
+            if with_records:
+                decision["record_index"] = record_index
+            decisions.append(decision)
+
+        for record_index, record in enumerate(game["game"]):
             action = record.get("action")
             if action == "set":
                 cube_value = record.get("cube", cube_value)
@@ -100,46 +147,47 @@ def walk_match(match, helpers):
                 if "nd-cubeful-eq" in analysis:
                     _, base = context(player, player, record["board"])
                     cube = cube_equities(analysis, player)
-                    decisions.append({
+                    found({
                         **base, "move_no": move_no, "kind": "cube", "dice": record.get("dice"),
                         "action": "No double", "best": best_cube_action(cube["nd"], cube["dt"], cube["dp"]),
                         "error": double_error(cube["nd"], cube["dt"], cube["dp"], doubled=False),
                         "forced": False, "cube": cube, "candidates": None,
                         "gnubg_skill": analysis.get("cube-skill"),
-                    })
+                    }, record_index)
                 if record.get("move") and analysis.get("moves"):
                     pair, base = context(player, player, record["board"])
-                    rows, played_index, forced, legal = _candidates(analysis, record["move"], helpers.move_text, pair)
+                    rows, played_index, forced, legal = _candidates(
+                        analysis, record["move"], helpers.move_text, pair, lambda v: to_emg(v, player), base_plies)
                     best_index = max(range(len(rows)), key=lambda i: rows[i]["equity"])
-                    decisions.append({
+                    found({
                         **base, "move_no": move_no, "kind": "checker", "dice": record.get("dice"),
                         "action": rows[played_index]["move"], "best": rows[best_index]["move"],
                         "error": checker_error(rows, played_index), "forced": forced,
                         "candidates": rows, "played_index": played_index, "cube": None, "legal": legal,
                         "gnubg_skill": analysis.get("skill"),
-                    })
+                    }, record_index)
             elif action == "double":
                 _, base = context(player, player, record["board"])
                 cube = cube_equities(analysis, player) if "nd-cubeful-eq" in analysis else None
-                last_double = {"base": base, "cube": cube}
+                last_double = {"base": base, "cube": cube, "record_index": record_index}
                 if cube:
-                    decisions.append({
+                    found({
                         **base, "move_no": move_no, "kind": "cube", "dice": None, "action": "Double",
                         "best": best_cube_action(cube["nd"], cube["dt"], cube["dp"]),
                         "error": double_error(cube["nd"], cube["dt"], cube["dp"], doubled=True),
                         "forced": False, "cube": cube, "candidates": None,
                         "gnubg_skill": analysis.get("skill"),
-                    })
+                    }, record_index)
             else:
                 took = action == "take"
                 if last_double and last_double["cube"]:
                     cube = last_double["cube"]
-                    decisions.append({
+                    found({
                         **last_double["base"], "player": player, "move_no": move_no, "kind": "take", "dice": None,
                         "action": "Take" if took else "Pass", "best": "Take" if cube["dt"] <= cube["dp"] else "Pass",
                         "error": take_error(cube["dt"], cube["dp"], took), "forced": False,
                         "cube": cube, "candidates": None, "gnubg_skill": analysis.get("skill"),
-                    })
+                    }, last_double["record_index"])
                 if took:
                     cube_value *= 2
                     cube_owner = player

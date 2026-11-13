@@ -147,8 +147,6 @@ class WalkMoneyGame(unittest.TestCase):
         self.assertEqual((helpers.conversions, decisions[0]["cube"]["nd"]), ([], 0.70))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class WalkLegalMoves(unittest.TestCase):
@@ -170,3 +168,66 @@ class WalkLegalMoves(unittest.TestCase):
 
     def test_cube_decisions_have_no_legal_list(self):
         self.assertEqual({d["kind"] for d in self.decisions if d.get("legal") is None}, {"cube", "take"})
+
+
+def rolled(move, mwc, std, trials=1296):
+    return {"type": "rollout", "move": move, "probs": [0.52, 0.12, 0.0, 0.1, 0.0], "trials": trials,
+            "cubeful-eq": mwc, "cubeful-eq-std": std, "match-eq": mwc, "match-eq-std": std,
+            "probs-std": [0.01, 0.01, 0.0, 0.01, 0.0]}
+
+
+DEEP_GAME = [
+    {"action": "move", "player": "X", "dice": [3, 1], "move": [[8, 5], [6, 5]], "board": "P1",
+     "analysis": {"moves": [rolled([[13, 10], [24, 23]], 0.62, 0.01), rolled([[8, 5], [6, 5]], 0.55, 0.02),
+                            {**mv([[24, 21], [24, 23]], 0.05), "evalcontext": {"plies": 3}},
+                            {**mv([[6, 3], [6, 5]], 0.01)},
+                            {**mv([[13, 12], [13, 10]], 0.4), "evalcontext": {"plies": 0}}],
+                  "imove": 1}},
+    {"action": "double", "player": "O", "board": "P2",
+     "analysis": {"type": "rollout", "trials": 648, "nd-probs": [0.7, 0.2, 0.0, 0.1, 0.0],
+                  "nd-cubeful-eq": 0.6, "nd-cubeful-eq-std": 0.005, "dt-cubeful-eq": 0.7, "dt-cubeful-eq-std": 0.01}},
+    {"action": "take", "player": "X"},
+]
+DEEP_MATCH = {"match-info": {"match-length": 7, "X": {"name": "alice"}, "O": {"name": "bob"}},
+              "games": [{"info": {"score-X": 0, "score-O": 0}, "game": DEEP_GAME}]}
+
+
+class WalkDeeperAnalysis(unittest.TestCase):
+    def setUp(self):
+        self.decisions = walk_match(DEEP_MATCH, FakeHelpers(), with_records=True, base_plies=2)["decisions"]
+
+    def test_rolled_out_moves_become_equity_with_their_standard_error(self):
+        rows = {r["move"]: r for r in self.decisions[0]["candidates"]}
+        self.assertEqual(
+            [(m, round(rows[m]["equity"], 4), round(rows[m]["rollout"]["std"], 4), rows[m]["rollout"]["trials"])
+             for m in ("13/10 24/23", "8/5 6/5")],
+            [("13/10 24/23", 0.24, 0.02, 1296), ("8/5 6/5", 0.1, 0.04, 1296)])
+
+    def test_evaluated_rows_are_labelled_with_their_depth_and_prefiltered_moves_dropped(self):
+        rows = [(r["move"], r.get("plies")) for r in self.decisions[0]["candidates"]]
+        self.assertEqual(rows, [("13/10 24/23", None), ("8/5 6/5", None), ("24/21 24/23", 3), ("6/3 6/5", 2)])
+
+    def test_error_compares_the_played_rollout_with_the_best_rollout(self):
+        self.assertEqual(round(self.decisions[0]["error"], 4), 0.14)
+
+    def test_cubeless_rollout_uses_the_cubeless_equity_as_is(self):
+        match = {**DEEP_MATCH, "games": [{**DEEP_MATCH["games"][0], "game": [
+            {**DEEP_GAME[0], "analysis": {**DEEP_GAME[0]["analysis"], "moves": [
+                {**rolled([[13, 10], [24, 23]], 0.3, 0.01), "cubeful": False},
+                {**rolled([[8, 5], [6, 5]], 0.1, 0.02), "cubeful": False}]}}]}]}
+        row = walk_match(match, FakeHelpers(), base_plies=2)["decisions"][0]["candidates"][0]
+        self.assertEqual((row["equity"], row["rollout"]["std"]), (0.3, 0.01))
+
+    def test_cube_rollout_keeps_trials_and_errors_on_both_actions(self):
+        cube = self.decisions[1]["cube"]
+        self.assertEqual((round(cube["nd"], 4), round(cube["dt"], 4), cube["rollout"]["trials"],
+                          round(cube["rollout"]["nd_std"], 4), round(cube["rollout"]["dt_std"], 4), cube["probs"][0]),
+                         (0.2, 0.4, 648, 0.01, 0.02, 0.7))
+
+    def test_decisions_point_at_the_record_holding_their_analysis(self):
+        self.assertEqual([(d["kind"], d["record_index"]) for d in self.decisions],
+                         [("checker", 0), ("cube", 1), ("take", 1)])
+
+
+if __name__ == "__main__":
+    unittest.main()

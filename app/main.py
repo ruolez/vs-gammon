@@ -5,9 +5,10 @@ import threading
 
 from flask import Flask, abort, g, jsonify, redirect, request, send_file, send_from_directory
 
-from app import db, jobs, migrate_docker, watcher
+from app import db, deep_jobs, jobs, migrate_docker, watcher
 from app.dashboard import build_dashboard
 from app.analysis import classify, grade_checker, grade_cube, is_correct, review_state, summarize
+from app.engine import deep
 from app.engine.runner import gnubg_version
 from app.export import build_export_zip
 from app.importer import (MAX_UPLOAD_BYTES, describe, fill_missing_keys, import_match_bytes, remove_duplicates,
@@ -126,9 +127,12 @@ def create_app(config=None):
     wake = threading.Event()
     wake_scan = threading.Event()
     app.extensions["wake_worker"] = wake
+    wake_deep = threading.Event()
+    app.extensions["wake_deep"] = wake_deep
     if app.config["START_WORKER"]:
         logging.basicConfig(level=logging.INFO)
         jobs.start_worker(db_path, data_dir, wake)
+        deep_jobs.start_worker(db_path, data_dir, wake_deep)
         if folders_available:
             watcher.start_watcher(db_path, data_dir, host_home, host_root, wake_scan, wake)
 
@@ -310,7 +314,68 @@ def create_app(config=None):
             abort(404)
         decision = found[0]
         decision["practice"] = db.decision_practice_history(conn(), decision_id)
+        decision["deep"] = db.deep_result(conn(), decision_id)
+        decision["deep_job"] = db.active_deep_job(conn(), decision_id)
         return jsonify(decision=decision)
+
+    @app.get("/api/deep/options")
+    def deep_options():
+        return jsonify(eval=deep.EVAL_DEFAULTS, rollout=deep.ROLLOUT_DEFAULTS, presets=deep.ROLLOUT_PRESETS,
+                       max_plies=deep.MAX_PLIES)
+
+    def deep_moves(decision, wanted):
+        steps = [c["steps"] for c in decision["candidates"]]
+        if wanted is None:
+            ranked = sorted(range(len(steps)), key=lambda i: -decision["candidates"][i]["equity"])
+            chosen = ranked[:3] + ([decision["played_index"]] if decision["played_index"] not in ranked[:3] else [])
+            return [steps[i] for i in chosen]
+        known = [s for s in steps] + [m["steps"] for m in decision.get("legal") or []]
+        moves = [m for m in wanted if m in known]
+        if not moves:
+            raise ValueError("choose at least one move to roll out")
+        return moves
+
+    @app.post("/api/decisions/<int:decision_id>/deep")
+    def start_deep(decision_id):
+        found = db.decisions_by_ids(conn(), [decision_id], thresholds(), with_legal=True)
+        if not found:
+            abort(404)
+        decision = found[0]
+        payload = request.get_json(silent=True) or {}
+        mode = payload.get("mode")
+        if mode not in ("eval", "rollout"):
+            raise ValueError("choose a deeper evaluation or a rollout")
+        if db.active_deep_job(conn(), decision_id):
+            raise ValueError("this position is already being analysed")
+        settings = deep.eval_settings(payload.get("settings")) if mode == "eval" else deep.rollout_settings(payload.get("settings"))
+        moves = deep_moves(decision, payload.get("moves")) if mode == "rollout" and decision["kind"] == "checker" else None
+        job_id = db.create_deep_job(conn(), decision_id, mode, settings, moves)
+        wake_deep.set()
+        return jsonify(job=db.deep_job(conn(), job_id))
+
+    @app.delete("/api/decisions/<int:decision_id>/deep")
+    def clear_deep(decision_id):
+        if not db.clear_deep_result(conn(), decision_id):
+            abort(404)
+        return jsonify(cleared=decision_id)
+
+    @app.get("/api/deep/jobs")
+    def deep_job_list():
+        return jsonify(jobs=db.list_deep_jobs(conn(), active_only=request.args.get("all") != "1"))
+
+    @app.get("/api/deep/jobs/<int:job_id>")
+    def deep_job_get(job_id):
+        job = db.deep_job(conn(), job_id)
+        if not job:
+            abort(404)
+        return jsonify(job=job)
+
+    @app.post("/api/deep/jobs/<int:job_id>/cancel")
+    def deep_job_cancel(job_id):
+        if not db.deep_job(conn(), job_id):
+            abort(404)
+        db.cancel_deep_job(conn(), job_id)
+        return jsonify(job=db.deep_job(conn(), job_id))
 
     @app.post("/api/decisions/<int:decision_id>/seen")
     def decision_seen(decision_id):

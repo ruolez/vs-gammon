@@ -182,6 +182,12 @@ function cameUp(n) {
   return t("This position came up {times}", { times: plural(n, "time") });
 }
 
+function deepBadge(d) {
+  if (!d.deep_mode) return "";
+  const label = d.deep_mode === "rollout" ? t("Rolled out") : t("Evaluated deeper");
+  return `<span class="deep-badge" title="${label}">${d.deep_mode === "rollout" ? "R" : "+"}</span>`;
+}
+
 function copiesBadge(d) {
   const n = (d.copies || []).length;
   return n > 1 ? `<span class="copies-badge" title="${cameUp(n)}">×${n}</span>` : "";
@@ -192,7 +198,7 @@ function renderRows() {
   $("rows").innerHTML = state.decisions.map((d) => `
     <div class="drow ${d.id === state.current ? "current" : ""}" data-id="${d.id}" role="button" tabindex="-1">
       <input type="checkbox" data-select="${d.id}" ${state.selected.has(d.id) ? "checked" : ""} aria-label="${t("Select for export")}">
-      <span class="where">${all ? `${esc(shortDate(d.event_date))}<br>` : ""}${t("G{game} · {move}", { game: d.game_no, move: d.move_no })}${copiesBadge(d)}</span>
+      <span class="where">${all ? `${esc(shortDate(d.event_date))}<br>` : ""}${t("G{game} · {move}", { game: d.game_no, move: d.move_no })}${copiesBadge(d)}${deepBadge(d)}</span>
       <span class="what"><span class="mv">${rowWhat(d)}</span><span class="who" title="${t("Best")}: ${esc(t(d.best))}">${rowWho(d)}</span>${rowTags(d)}</span>
       <span class="err"><span class="v">${formatLoss(d.error)}</span><span class="sevtxt ${d.class || "ok"}">${d.class ? SEVERITY_LABEL[d.class] : t("Good")}</span></span>
     </div>`).join("")
@@ -243,11 +249,13 @@ function renderBoardPanel(d) {
       <button type="button" class="nav-arrow" id="next-dec" aria-label="${t("Next position")}" title="${t("Next position (→)")}">${icon("forward")}</button>
     </div>
     ${pills}
+    <div class="deep-bar" id="deep-bar"></div>
     <div class="tag-line" id="tag-line"></div>
     ${copiesList(d)}
     <div class="xgid"><code title="XGID">${esc(d.xgid)}</code><button class="btn sm ghost" id="copy-xgid">${icon("copy")}${t("Copy XGID")}</button></div>`;
   drawBoard(d);
   renderTagLine(d);
+  Deep.mount($("deep-bar"), d, deeperResult);
   $("board-panel").querySelectorAll("[data-copy]").forEach((el) => el.addEventListener("click", () => showDetail(state.current, Number(el.dataset.copy))));
   const index = state.decisions.findIndex((x) => x.id === state.current);
   $("prev-dec").disabled = index <= 0;
@@ -269,6 +277,31 @@ function renderBoardPanel(d) {
       toast(t("Copy failed. Select the text and copy it by hand."), true);
     }
   });
+}
+
+const DEEP_FIELDS = ["candidates", "played_index", "best", "error", "class", "cube", "deep_mode", "legal", "forced"];
+
+function deeperResult(fresh) {
+  const row = state.decisions.find((x) => x.id === fresh.id);
+  if (row) DEEP_FIELDS.forEach((f) => { row[f] = fresh[f]; });
+  state.decisions.forEach((r) => (r.copies || []).forEach((c) => {
+    if (c.id === fresh.id) Object.assign(c, { error: fresh.error, class: fresh.class });
+  }));
+  renderRows();
+  if (state.shown === fresh.id) {
+    state.candidate = null;
+    renderDetail(row || { ...fresh, copies: (rowOf(fresh.id) || {}).copies });
+  }
+}
+
+function sourceTag(c) {
+  if (c.rollout) return `<span class="tag src" title="${t("Rolled out: {games}", { games: plural(c.rollout.trials, "game") })}">${t("Rollout")}</span>`;
+  if (c.plies !== undefined && c.plies !== null) return `<span class="tag src">${t("{n}-ply", { n: c.plies })}</span>`;
+  return "";
+}
+
+function plusMinus(std) {
+  return std ? `<span class="pm" title="${t("Standard error")}">±${std.toFixed(3)}</span>` : "";
 }
 
 function copiesList(d) {
@@ -320,8 +353,8 @@ function renderAnalysis(d) {
     body += `<section><h3>${t("Candidate moves")}</h3><table class="cands"><thead><tr><th></th><th>${t("Move")}</th><th class="num">${t("Equity")}</th><th class="num">${t("Diff")}</th></tr></thead><tbody>${
       d.candidates.map((c, i) => `<tr data-cand="${i}" class="${state.candidate === i ? "selected" : ""}">
         <td class="rank">${i + 1}</td>
-        <td class="mv">${esc(c.move)}${c === best ? `<span class="tag best">${t("best")}</span>` : ""}${i === d.played_index ? `<span class="tag game">${t("played")}</span>` : ""}</td>
-        <td class="num">${formatEquity(c.equity)}</td><td class="num diff">${c === best ? "" : (c.equity - best.equity).toFixed(3)}</td></tr>`).join("")
+        <td class="mv">${esc(c.move)}${c === best ? `<span class="tag best">${t("best")}</span>` : ""}${i === d.played_index ? `<span class="tag game">${t("played")}</span>` : ""}${sourceTag(c)}</td>
+        <td class="num">${formatEquity(c.equity)}${plusMinus(c.rollout && c.rollout.std)}</td><td class="num diff">${c === best ? "" : (c.equity - best.equity).toFixed(3)}</td></tr>`).join("")
     }</tbody></table><p class="small muted muted-note">${t("Click a move to draw it on the board.")}</p></section>`;
     body += probsBlock((d.candidates[state.candidate ?? d.played_index] || {}).probs, playerName(d, d.on_roll));
     if (d.forced) body += `<section><p class="small muted">${t("Forced: only one legal play.")}</p></section>`;
@@ -330,10 +363,13 @@ function renderAnalysis(d) {
     const optimal = Math.max(c.nd, Math.min(c.dt, c.dp));
     const chosen = (label) => (d.kind === "cube" && ((label === "No double" && d.action === "No double") || (label === "Double, take" && d.action === "Double")))
       || (d.kind === "take" && ((label === "Double, take" && d.action === "Take") || (label === "Double, pass" && d.action === "Pass")));
-    body += `<section><h3>${t("Cube equities for {name}", { name: esc(playerName(d, d.on_roll)) })}</h3><div class="cube-rows">${
+    const source = c.rollout ? `<p class="small muted note-tight">${t("Rolled out: {games}", { games: plural(c.rollout.trials, "game") })}</p>`
+      : c.plies !== undefined && c.plies !== null ? `<p class="small muted note-tight">${t("Evaluated at {n}-ply", { n: c.plies })}</p>` : "";
+    const stds = c.rollout ? { "No double": c.rollout.nd_std, "Double, take": c.rollout.dt_std } : {};
+    body += `<section><h3>${t("Cube equities for {name}", { name: esc(playerName(d, d.on_roll)) })}</h3>${source}<div class="cube-rows">${
       [["No double", c.nd], ["Double, take", c.dt], ["Double, pass", c.dp]].map(([label, eq]) => `
         <div class="cube-row ${eq === optimal ? "best" : ""}"><span>${t(label)}${chosen(label) ? `<span class="tag game">${t("played")}</span>` : ""}${eq === optimal ? `<span class="tag best">${t("best")}</span>` : ""}</span>
-        <span class="eq">${formatEquity(eq)}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("")
+        <span class="eq">${formatEquity(eq)}${plusMinus(stds[label])}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("")
     }</div><p class="small muted-note">${t("Right action")}: <strong>${esc(t(d.best))}</strong></p></section>`;
     body += probsBlock(c.probs, playerName(d, d.on_roll));
   }

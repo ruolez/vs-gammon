@@ -7,6 +7,7 @@ import threading
 
 GNUBG = os.environ.get("GNUBG_BIN", "/usr/games/gnubg")
 DRIVER = os.path.join(os.path.dirname(__file__), "analyse_gnubg.py")
+DEEP_DRIVER = os.path.join(os.path.dirname(__file__), "deep_gnubg.py")
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_TIMEOUT = 3600
 
@@ -15,6 +16,10 @@ _stopping = threading.Event()
 
 
 class EngineError(Exception):
+    pass
+
+
+class Cancelled(Exception):
     pass
 
 
@@ -31,13 +36,13 @@ def gnubg_version():
         return None
 
 
-def engine_command(binary, work, env):
+def engine_command(binary, work, env, driver=DRIVER):
     command = [binary, "-t", "-q", "-r", "-s", work]
     if env.get("GNUBG_DATADIR"):
         command += ["-D", env["GNUBG_DATADIR"]]
     if env.get("GNUBG_PKGDATADIR"):
         command += ["-P", env["GNUBG_PKGDATADIR"]]
-    return command + ["-p", DRIVER]
+    return command + ["-p", driver]
 
 
 def stop_running():
@@ -81,4 +86,59 @@ def run_analysis(mat_path, plies=2, threads=4, timeout=DEFAULT_TIMEOUT):
             result = json.load(f)
     if "error" in result:
         raise EngineError(result["error"])
+    return result
+
+
+def run_deep(mat_path, job, on_line=None, cancelled=lambda: False, timeout=24 * 3600):
+    """Runs deep_gnubg.py for one decision. on_line gets each line gnubg prints (rollout progress); cancelled is
+    polled and stops gnubg when it returns True."""
+    with tempfile.TemporaryDirectory(prefix="gnubg-deep-") as work:
+        output = os.path.join(work, "result.json")
+        job_path = os.path.join(work, "job.json")
+        with open(job_path, "w") as f:
+            json.dump({**job, "mat": os.path.abspath(mat_path)}, f)
+        env = {**os.environ, "HOME": work, "GA_JOB": job_path, "GA_OUTPUT": output, "GA_APP_ROOT": APP_ROOT}
+        proc = subprocess.Popen(
+            engine_command(GNUBG, work, env, DEEP_DRIVER),
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env, cwd=work,
+            errors="replace",
+        )
+        _running.add(proc)
+        tail = []
+
+        def read():
+            for line in proc.stdout:
+                tail.append(line)
+                del tail[:-40]
+                if on_line:
+                    on_line(line)
+
+        reader = threading.Thread(target=read, daemon=True)
+        reader.start()
+        waited = 0.0
+        try:
+            while proc.poll() is None:
+                if cancelled():
+                    proc.kill()
+                    proc.wait()
+                    raise Cancelled()
+                if waited > timeout:
+                    proc.kill()
+                    proc.wait()
+                    raise EngineError(f"analysis timed out after {timeout} s")
+                threading.Event().wait(0.3)
+                waited += 0.3
+        finally:
+            _running.discard(proc)
+            reader.join(timeout=5)
+        if _stopping.is_set():
+            threading.Event().wait()
+        if not os.path.exists(output):
+            raise EngineError(f"gnubg exited with code {proc.returncode} without a result: {''.join(tail)[-2000:]}")
+        with open(output) as f:
+            result = json.load(f)
+    if "error" in result:
+        error = EngineError(result["error"])
+        error.trace = result.get("trace")
+        raise error
     return result
