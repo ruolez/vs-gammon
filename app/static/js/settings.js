@@ -44,8 +44,8 @@ document.addEventListener("DOMContentLoaded", () => {
   Theme.apply();
   $("me").addEventListener("change", () => {
     const me = $("me").value;
-    const review = Prefs.get("review.filters", null);
-    if (review) Prefs.set("review.filters", { ...review, player: me ? `name:${me}` : "" });
+    const moves = Prefs.get("moves.filters", null);
+    if (moves) Prefs.set("moves.filters", { ...moves, player: me ? `name:${me}` : "" });
     Prefs.set("dashboard.player", "");
     try {
       const practice = JSON.parse(localStorage.getItem("gammon-practice") || "{}");

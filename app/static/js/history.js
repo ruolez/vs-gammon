@@ -20,7 +20,7 @@ function dayLabel(at) {
 function eventRow(e) {
   const [title, ic] = KINDS[e.kind] || [e.kind, "history"];
   const time = new Date(e.at).toLocaleTimeString(I18n.locale(), { hour: "numeric", minute: "2-digit" });
-  const link = e.match_id && e.match_status === "done" ? `<a class="btn sm secondary" href="/review?match=${e.match_id}">${t("Review")}</a>` : "";
+  const link = e.match_id && e.match_status === "done" ? `<a class="btn sm secondary" href="/moves?match=${e.match_id}&min_error=doubtful">${t("Moves")}</a>` : "";
   return `<div class="event"><span class="ic ${esc(e.kind)}">${icon(ic)}</span>
     <div><div class="title">${title}</div><div class="msg">${esc(I18n.server(e.message))}</div></div>
     <div class="time"><span title="${esc(e.at)}">${time}</span>${link}</div></div>`;

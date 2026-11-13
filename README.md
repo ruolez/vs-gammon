@@ -46,7 +46,7 @@ Add `--yes` to skip questions. The shortcut writes a log to `~/Library/Logs/VS G
 
 ## Using it
 
-The sidebar has Dashboard, Practice (with the number of positions due), Review, Matches, History and Settings. The theme switch at its foot cycles light, dark and "match my Mac"; the sidebar collapses to an icon rail with the panel button or the `\` key.
+The sidebar has Dashboard, Practice (with the number of positions due), Moves, Matches, History and Settings. The theme switch at its foot cycles light, dark and "match my Mac"; the sidebar collapses to an icon rail with the panel button or the `\` key.
 
 The app speaks English and Russian: the EN/RU button at the foot of the sidebar switches at once, and Settings › Appearance has the same choice. A− and A+ next to it change the text size from 90% to 150% (also the `+` and `-` keys). Language, text size and theme are remembered in the browser.
 
@@ -58,9 +58,12 @@ The app speaks English and Russian: the EN/RU button at the foot of the sidebar 
 1. **Matches** (`/matches`): drop `.mat` files on the page. Each file is queued and analysed in the background; a 3-point match takes about 2 s at 2-ply on an M-series Mac. Each player gets:
    - counts of doubtful, bad and very bad decisions;
    - an approximate PR (mean error × 500).
-2. **Review:** filter by match (or all matches), player, checker or cube decisions, severity or a custom minimum error, and game.
-   - Clicking a row shows the board, the XGID (copy and paste it into XG), and either the candidate moves or the no double / double-take / double-pass equities.
-   - Keyboard: ↑ ↓ (or j/k) to move between rows, space to select.
+   - A match already in the library is skipped, even when the file differs (another download, changed ratings, or the other player's export with the columns swapped). Duplicates imported by older versions are flagged, and **Remove duplicates** keeps the first copy along with the practice answers from every copy.
+2. **Moves:** every position from your matches. Filter by match (or several), player, checker or cube decisions, severity or a custom minimum error, game and tags.
+   - A position that came up more than once (an opening roll at the same score, say) is listed once with "×N"; the board panel lists every time it came up, and you can open each one. Tags belong to the position, so they cover every copy.
+   - Clicking a row shows the board, the XGID (copy and paste it into XG), and either the candidate moves or the no double / double-take / double-pass equities. ‹ › beside the board step through the list.
+   - Keyboard: ↑ ↓ or ← → (or j/k) to move between rows, space to select, T to tag.
+   - Opening a position counts it as reviewed; a match whose mistakes you have all opened shows "Reviewed" on Matches.
 3. **Export:** tick positions and press **Export N as .xgp (ZIP)**.
    - The ZIP holds one `.xgp` per position, named `p1-vs-p2_date_g<game>_m<move>_<player>_<kind>_<class>.xgp`, plus `index.csv`. The CSV lists the played move, the best move, the error and the XGID for each file.
    - A copy of each ZIP is kept in `exports/`.
@@ -71,6 +74,7 @@ The app speaks English and Russian: the EN/RU button at the foot of the sidebar 
    - **Feedback:** after each answer you see right or wrong with the equity lost, plus your move, the best move and the game move, as arrows on the board and in the candidate list.
    - **Scoring:** an answer counts as correct when it loses less than your "doubtful" threshold.
    - **Re-quizzing:** missed positions (and "Show answer") come back later in the same session and stay "due" until you get them right. Every attempt is saved.
+   - A position that came up in several matches is asked once, and your answer counts for every copy.
 5. **History:** a timeline of imports (upload or folder), analyses (with a PR summary per player), failures, duplicates, exports and folder changes.
 6. **Settings:**
    - Threshold presets: GNU Backgammon 0.03/0.06/0.12, XG style 0.02/0.04/0.08, or custom. Changing thresholds reclassifies everything at once, without re-analysing.
@@ -125,7 +129,7 @@ app/
   xgp/records.py        2560-byte record field map
   xgp/writer.py         position → .xgp
   xgp/thumbnail.py      Pillow board thumbnail
-  static/               vanilla HTML/CSS/JS (Matches, Review, Practice, History, Settings)
+  static/               vanilla HTML/CSS/JS (Dashboard, Practice, Moves, Matches, History, Settings)
     js/moves.js         single-die steps + reachable legal plays (shared with Node tests)
     js/board.js         SVG board: perspective, arrows, clickable mode
 tests/                  unittest suites + fixtures (sample .mat and XG .xgp)

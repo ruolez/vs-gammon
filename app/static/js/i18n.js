@@ -3,7 +3,7 @@
   const RU = isNode ? require("./i18n-ru.js") : root.I18N_RU;
   const LANGUAGES = { en: { label: "English", short: "EN", locale: "en-US" }, ru: { label: "Русский", short: "RU", locale: "ru-RU" } };
   const EN_PLURALS = {
-    match: "matches", game: "games", decision: "decisions", error: "errors", position: "positions", try: "tries",
+    match: "matches", game: "games", decision: "decisions", error: "errors", position: "positions", try: "tries", time: "times",
     answer: "answers", day: "days", time: "times", folder: "folders", ".mat file": ".mat files", pip: "pips",
   };
   const STORAGE_KEY = "ga-lang";
@@ -62,6 +62,7 @@
     [/^Imported (.+) from (.+)$/, (m) => t("Imported {match} from {path}", { match: matchDescription(m[1]), path: m[2] })],
     [/^(.+) is already imported as (.+)$/, (m) => t("{file} is already imported as {match}", { file: m[1], match: matchDescription(m[2]) })],
     [/^Re-analysis requested for (.+)$/, (m) => t("Re-analysis requested for {match}", { match: matchDescription(m[1]) })],
+    [/^Removed a duplicate of (.+)$/, (m) => t("Removed a duplicate of {match}", { match: matchDescription(m[1]) })],
     [/^Deleted (.+)$/, (m) => t("Deleted {match}", { match: matchDescription(m[1]) })],
     [/^Exported (\d+) positions to (.+)$/, (m) => t("Exported {positions} to {file}", { positions: tn("position", Number(m[1])), file: m[2] })],
     [/^Watching (.+) for new match files$/, (m) => t("Watching {path} for new match files", { path: m[1] })],

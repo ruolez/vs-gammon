@@ -1,3 +1,5 @@
+import hashlib
+import json
 import re
 
 TAG = re.compile(r'^\s*;\s*\[(?P<key>[^"\]]+?)\s+"(?P<value>[^"]*)"\]')
@@ -42,3 +44,48 @@ def parse_mat_header(text):
         "event_time": time.replace(".", ":") if time else None,
         "match_length": int(length.group(1)),
     }
+
+
+GAME_LINE = re.compile(r"^\s*Game\s+\d+\s*$")
+MOVE_NUMBER = re.compile(r"^\s*\d+\)")
+REPEATED = re.compile(r"^(?P<move>\S+?)\((?P<times>\d)\)$")
+
+
+def _normal_action(text):
+    text = " ".join(text.replace("*", "").split()).lower()
+    dice, colon, moves = text.partition(":")
+    if not (colon and dice.isdigit()):
+        return text
+    steps = []
+    for step in moves.split():
+        repeated = REPEATED.match(step)
+        steps += [repeated["move"]] * int(repeated["times"]) if repeated else [step]
+    return f"{dice}: {' '.join(sorted(steps))}"
+
+
+def match_fingerprint(text):
+    """Same value for the same match whatever the headers say or which player's column is on the left:
+    every action is recorded with its player's name, in the order played."""
+    length = int(MATCH_LENGTH.search(text).group(1)) if MATCH_LENGTH.search(text) else None
+    lines = text.splitlines()
+    games, actions, names, column = [], None, None, None
+    for i, line in enumerate(lines):
+        if GAME_LINE.match(line):
+            score = SCORE_LINE.match(lines[i + 1]) if i + 1 < len(lines) else None
+            if not score:
+                return None
+            names = (score["p1"].strip().lower(), score["p2"].strip().lower())
+            column = score.start("p2")
+            actions = []
+            games.append(actions)
+            continue
+        if actions is None or not line.strip() or SCORE_LINE.match(line) or line.lstrip().startswith(";"):
+            continue
+        for name, part in ((names[0], MOVE_NUMBER.sub("", line[:column], count=1)), (names[1], line[column:])):
+            action = _normal_action(part)
+            if action:
+                actions.append([name, action])
+    if length is None or not any(games):
+        return None
+    payload = json.dumps({"length": length, "games": games}, separators=(",", ":"))
+    return hashlib.sha256(payload.encode()).hexdigest()

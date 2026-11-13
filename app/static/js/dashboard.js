@@ -62,7 +62,7 @@ function renderFeatured(d) {
       <div class="what">${checker ? diceSvg(m.dice) : icon("cube")}<span>${t(checker ? "{name} to play" : m.kind === "take" ? "{name}: take or pass?" : "{name}: double or not?", { name: esc(playerName(m, m.player)) })}</span></div>
       <p class="small muted note-tight">${t("vs {name}", { name: esc(m.opponent) })} · ${esc(shortDate(m.event_date))} · ${t("game {game}, move {move}", { game: m.game_no, move: m.move_no })}</p>
       <div class="lines">${line("played", t("You played"), t(m.action), `−${m.error.toFixed(3)}`)}${line("best", t("Best"), t(m.best), "")}</div>
-      <div class="row-gap"><a class="btn" href="/practice?player_name=${encodeURIComponent(d.player)}">${t("Practise it")}</a><a class="btn secondary" href="/review?match=${m.match_id}&focus=${m.id}&min_error=all">${t("Open in Review")}</a></div>
+      <div class="row-gap"><a class="btn" href="/practice?player_name=${encodeURIComponent(d.player)}">${t("Practise it")}</a><a class="btn secondary" href="/moves?match=${m.match_id}&focus=${m.id}&min_error=all">${t("Open in Moves")}</a></div>
     </div></div>`;
   Board.renderWithLabels($("featured-board"), m, checker ? { arrows, noNumbers: true } : { bottom: m.player, cubeOffered: m.kind === "take", noNumbers: true });
 }
@@ -95,7 +95,7 @@ function renderChart(d) {
   }
   points.forEach((p, i) => {
     const last = i === points.length - 1;
-    svg += `<a href="/review?match=${p.id}"><circle class="pt ${last ? "hot" : ""}" cx="${x(i)}" cy="${y(p.pr)}" r="${last ? 6 : 4.5}"><title>${esc(shortDate(p.date))} ${t("vs {name}", { name: esc(p.opponent) })}: PR ${p.pr.toFixed(1)}</title></circle></a>`;
+    svg += `<a href="/moves?match=${p.id}&min_error=doubtful"><circle class="pt ${last ? "hot" : ""}" cx="${x(i)}" cy="${y(p.pr)}" r="${last ? 6 : 4.5}"><title>${esc(shortDate(p.date))} ${t("vs {name}", { name: esc(p.opponent) })}: PR ${p.pr.toFixed(1)}</title></circle></a>`;
     if (last || points.length <= 8) svg += `<text x="${x(i)}" y="${height - 10}" text-anchor="middle">${esc(shortDate(p.date))}</text>`;
   });
   const latest = points[points.length - 1];
@@ -119,7 +119,7 @@ function renderPhases(d) {
 function mistakeRow(m) {
   const what = m.kind === "checker" ? diceSvg(m.dice) : icon("cube");
   const played = esc(t(m.action));
-  return `<a class="mistake" href="/review?match=${m.match_id}&focus=${m.id}&min_error=all">
+  return `<a class="mistake" href="/moves?match=${m.match_id}&focus=${m.id}&min_error=all">
     <div class="thumb">${Board.render(m, { mini: true })}</div>
     <div>
       <div class="what">${what}<span>${m.kind === "checker" ? played : m.kind === "take" ? t("{action} (take or pass)", { action: played }) : t("{action} (cube)", { action: played })}</span></div>
@@ -146,13 +146,13 @@ function renderMistakes(d) {
   $("mistakes").innerHTML = list.length
     ? list.map(mistakeRow).join("")
     : `<div class="empty">${icon("check")}<strong>${t("No errors found")}</strong><p>${t("Nothing above your doubtful threshold in recent matches.")}</p></div>`;
-  $("mistakes-all").href = `/review?player_name=${encodeURIComponent(d.player)}`;
+  $("mistakes-all").href = `/moves?player_name=${encodeURIComponent(d.player)}&min_error=doubtful`;
 }
 
 function renderRecent(d) {
   $("recent").innerHTML = d.matches.slice(0, 6).map((m) => {
     const result = m.won ? `<span class="result win">${t("Won")}</span>` : m.lost ? `<span class="result loss">${t("Lost")}</span>` : "";
-    return `<a class="match-row" href="/review?match=${m.id}">
+    return `<a class="match-row" href="/moves?match=${m.id}&min_error=doubtful">
       <div class="me"><div class="name">${esc(d.player)}</div><div class="sub">PR ${m.pr === null ? "–" : m.pr.toFixed(1)} · ${plural(m.errors, "error")}</div></div>
       <div class="score">${m.my_score}–${m.their_score}<small>${result || t("{n}-point", { n: m.match_length })} · ${esc(shortDate(m.date))}</small></div>
       <div><div class="name">${esc(m.opponent)}</div><div class="sub">PR ${m.their_pr === null ? "–" : m.their_pr.toFixed(1)}</div></div>

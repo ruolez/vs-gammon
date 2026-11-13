@@ -237,8 +237,7 @@ const TextSize = {
 const NAV = [
   ["/", "dashboard", t("Dashboard")],
   ["/practice", "practice", t("Practice")],
-  ["/review", "review", t("Review")],
-  ["/positions", "tag", t("Positions")],
+  ["/moves", "review", t("Moves")],
   ["/matches", "matches", t("Matches")],
   ["/history", "history", t("History")],
   ["/settings", "settings", t("Settings")],
@@ -332,7 +331,7 @@ const Native = {
       "Hide VS Gammon": t("Hide VS Gammon"), "Hide Others": t("Hide Others"), "Show All": t("Show All"), "Quit VS Gammon": t("Quit VS Gammon"),
       "File": t("File"), "Import Matches…": t("Import Matches…"), "Close Window": t("Close Window"),
       "Edit": t("Edit"), "Undo": t("Undo"), "Redo": t("Redo"), "Cut": t("Cut"), "Copy": t("Copy"), "Paste": t("Paste"), "Select All": t("Select All"),
-      "View": t("View"), "Dashboard": t("Dashboard"), "Practice": t("Practice"), "Review": t("Review"), "Positions": t("Positions"), "Matches": t("Matches"), "History": t("History"),
+      "View": t("View"), "Dashboard": t("Dashboard"), "Practice": t("Practice"), "Moves": t("Moves"), "Matches": t("Matches"), "History": t("History"),
       "Back": t("Back"), "Forward": t("Forward"), "Reload": t("Reload"),
       "Larger Text": t("Larger Text"), "Smaller Text": t("Smaller Text"), "Actual Size": t("Actual Size"),
       "Theme": t("Theme"), "Light": t("Light"), "Dark": t("Dark"), "Match System": t("Match System"), "Language": t("Language"),

@@ -3,19 +3,21 @@ import logging
 import os
 import threading
 
-from flask import Flask, abort, g, jsonify, request, send_file, send_from_directory
+from flask import Flask, abort, g, jsonify, redirect, request, send_file, send_from_directory
 
 from app import db, jobs, migrate_docker, watcher
 from app.dashboard import build_dashboard
 from app.analysis import classify, grade_checker, grade_cube, is_correct, review_state, summarize
 from app.engine.runner import gnubg_version
 from app.export import build_export_zip
-from app.importer import MAX_UPLOAD_BYTES, describe, import_match_bytes, upload_path
+from app.importer import (MAX_UPLOAD_BYTES, describe, fill_missing_keys, import_match_bytes, remove_duplicates,
+                          upload_path)
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 MAX_EXPORT = 500
-PAGES = {"/": "index.html", "/matches": "matches.html", "/review": "review.html", "/practice": "practice.html",
-         "/history": "history.html", "/positions": "positions.html", "/settings": "settings.html"}
+PAGES = {"/": "index.html", "/matches": "matches.html", "/moves": "moves.html", "/practice": "practice.html",
+         "/history": "history.html", "/settings": "settings.html"}
+MOVED_PAGES = {"/review": "/moves", "/positions": "/moves"}
 CUBE_ANSWER_TEXT = {"double": "Double", "no_double": "No double", "take": "Take", "pass": "Pass"}
 
 
@@ -119,6 +121,7 @@ def create_app(config=None):
     db_path = os.path.join(data_dir, "app.db")
     setup = db.connect(db_path)
     db.migrate(setup)
+    fill_missing_keys(setup, data_dir)
     setup.close()
     wake = threading.Event()
     wake_scan = threading.Event()
@@ -170,6 +173,10 @@ def create_app(config=None):
     for route, page in PAGES.items():
         app.add_url_rule(route, f"page_{page}", (lambda p=page: send_from_directory(STATIC_DIR, p)))
 
+    for old, new in MOVED_PAGES.items():
+        app.add_url_rule(old, f"moved_{old}", (lambda target=new: redirect(
+            f"{target}?{request.query_string.decode()}" if request.query_string else target)))
+
     @app.get("/static/<path:path>")
     def static_files(path):
         return send_from_directory(STATIC_DIR, path)
@@ -194,7 +201,12 @@ def create_app(config=None):
     @app.get("/api/matches")
     def list_matches():
         rows = conn().execute("SELECT * FROM matches ORDER BY COALESCE(event_date, '') DESC, id DESC").fetchall()
-        return jsonify(matches=[match_json(r) for r in rows])
+        duplicates = db.duplicate_matches(conn())
+        return jsonify(matches=[{**match_json(r), "duplicate_of": duplicates.get(r["id"])} for r in rows])
+
+    @app.post("/api/matches/remove-duplicates")
+    def remove_duplicate_matches():
+        return jsonify(removed=remove_duplicates(conn(), data_dir))
 
     @app.get("/api/matches/<int:match_id>")
     def get_match(match_id):
@@ -287,6 +299,8 @@ def create_app(config=None):
         t = thresholds()
         decisions = db.query_decisions(conn(), t, include_forced=request.args.get("include_forced") == "1",
                                        **_filter_args())
+        if request.args.get("group") == "position":
+            decisions = db.group_positions(conn(), decisions, t)
         return jsonify(decisions=decisions, thresholds=t)
 
     @app.get("/api/decisions/<int:decision_id>")

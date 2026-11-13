@@ -27,7 +27,7 @@ final class SelfTest {
         dir = URL(fileURLWithPath: path)
         let collector = "window.__errors=[];addEventListener('error',e=>__errors.push(e.message));addEventListener('unhandledrejection',e=>__errors.push(String(e.reason)))"
         web.webView.configuration.userContentController.addUserScript(WKUserScript(source: collector, injectionTime: .atDocumentStart, forMainFrameOnly: true))
-        let pages = ["/", "/practice", "/review", "/positions", "/matches", "/history", "/settings"]
+        let pages = ["/", "/practice", "/moves", "/matches", "/history", "/settings"]
         for width: CGFloat in [1320, 1024, 768, 480] {
             steps += pages.map { Step(path: $0, lang: "en", text: 100, theme: "light", width: width) }
             steps += pages.map { Step(path: $0, lang: "ru", text: 150, theme: "dark", width: width) }

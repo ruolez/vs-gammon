@@ -34,7 +34,7 @@ JSON_COLUMNS = ("dice", "board", "candidates", "cube", "legal")
 DECISION_FIELDS = (
     "game_no", "move_no", "player", "on_roll", "kind", "dice", "position_id", "xgid", "board", "cube_value",
     "cube_owner", "score1", "score2", "match_length", "crawford_game", "action", "best", "error", "forced",
-    "candidates", "played_index", "cube", "gnubg_skill", "legal",
+    "candidates", "played_index", "cube", "gnubg_skill", "legal", "position_key",
 )
 DECISION_IDENTITY = ("game_no", "move_no", "kind", "player")
 LIST_COLUMNS = ", ".join(f"d.{f}" for f in DECISION_FIELDS if f != "legal")
@@ -104,21 +104,81 @@ def list_events(conn, limit=100, before_id=None, kind=None):
     return [dict(r) for r in rows]
 
 
-def insert_match(conn, filename, sha256, header, source="upload", source_path=None):
+def insert_match(conn, filename, sha256, header, source="upload", source_path=None, content_key=None):
     with conn:
         cur = conn.execute(
             """INSERT INTO matches (filename, sha256, site, external_id, player1, player2, elo1, elo2, match_length,
-                                    event_date, event_time, status, created_at, source, source_path)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)""",
+                                    event_date, event_time, status, created_at, source, source_path, content_key)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)""",
             (filename, sha256, header["site"], header["external_id"], header["player1"], header["player2"],
              header["elo1"], header["elo2"], header["match_length"], header["event_date"], header["event_time"],
-             now_local(), source, source_path),
+             now_local(), source, source_path, content_key),
         )
     return cur.lastrowid
 
 
 def match_by_sha(conn, sha256):
     return conn.execute("SELECT * FROM matches WHERE sha256 = ?", (sha256,)).fetchone()
+
+
+def match_by_content(conn, content_key):
+    if not content_key:
+        return None
+    return conn.execute("SELECT * FROM matches WHERE content_key = ? ORDER BY id LIMIT 1", (content_key,)).fetchone()
+
+
+KEEP_ORDER = "CASE WHEN status = 'done' THEN 0 ELSE 1 END, id"
+
+
+def duplicate_matches(conn):
+    """{duplicate match id: the copy that is kept}. The analysed copy imported first is kept."""
+    groups = {}
+    for row in conn.execute(f"SELECT id, content_key FROM matches WHERE content_key IS NOT NULL ORDER BY {KEEP_ORDER}"):
+        groups.setdefault(row["content_key"], []).append(row["id"])
+    return {dup: ids[0] for ids in groups.values() for dup in ids[1:]}
+
+
+def fold_duplicate(conn, duplicate_id, keep_id):
+    """Moves what was learnt on a duplicate (practice answers, seen marks, review mark, watched files) to the kept
+    copy, matched by position, then deletes the duplicate."""
+    with conn:
+        conn.execute(
+            """UPDATE practice_attempts SET decision_id = (
+                   SELECT k.id FROM decisions k JOIN decisions d ON d.position_key = k.position_key
+                   WHERE d.id = practice_attempts.decision_id AND k.match_id = ? ORDER BY k.id LIMIT 1)
+               WHERE decision_id IN (SELECT id FROM decisions WHERE match_id = ?)
+                 AND EXISTS (SELECT 1 FROM decisions k JOIN decisions d ON d.position_key = k.position_key
+                             WHERE d.id = practice_attempts.decision_id AND k.match_id = ?)""",
+            (keep_id, duplicate_id, keep_id),
+        )
+        conn.execute(
+            """UPDATE decisions SET seen_at = (
+                   SELECT MIN(d.seen_at) FROM decisions d WHERE d.match_id = ? AND d.position_key = decisions.position_key)
+               WHERE match_id = ? AND seen_at IS NULL""",
+            (duplicate_id, keep_id),
+        )
+        conn.execute(
+            """UPDATE matches SET review_mark = COALESCE(review_mark, (SELECT review_mark FROM matches WHERE id = ?))
+               WHERE id = ?""",
+            (duplicate_id, keep_id),
+        )
+        conn.execute("UPDATE folder_files SET match_id = ? WHERE match_id = ?", (keep_id, duplicate_id))
+        conn.execute("DELETE FROM matches WHERE id = ?", (duplicate_id,))
+
+
+def fill_position_keys(conn):
+    rows = conn.execute(
+        f"SELECT d.id, {LIST_COLUMNS} FROM decisions d WHERE d.position_key IS NULL").fetchall()
+    if rows:
+        with conn:
+            conn.executemany("UPDATE decisions SET position_key = ? WHERE id = ?",
+                             [(position_key(decision_from_row(r, None)), r["id"]) for r in rows])
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'decision_tags'").fetchone():
+        with conn:
+            conn.execute(
+                """INSERT OR IGNORE INTO position_tags (position_key, tag_id, added_at)
+                   SELECT d.position_key, dt.tag_id, dt.added_at FROM decision_tags dt JOIN decisions d ON d.id = dt.decision_id""")
+            conn.execute("DROP TABLE decision_tags")
 
 
 def set_match_status(conn, match_id, status, error=None):
@@ -147,10 +207,15 @@ def _xgid(d):
                       s["match_length"], s["crawford_game"])
 
 
+def position_key(d):
+    return f"{d['kind']}:{_xgid(d)}"
+
+
 def _decision_values(d):
     values = {
         **{f: d.get(f) for f in DECISION_FIELDS},
         "xgid": _xgid(d),
+        "position_key": position_key(d),
         "crawford_game": int(d["crawford_game"]),
         "forced": int(d["forced"]),
     }
@@ -197,7 +262,7 @@ def decision_from_row(row, thresholds):
             d[column] = json.loads(d[column])
     d["forced"] = bool(d["forced"])
     d["crawford_game"] = bool(d["crawford_game"])
-    d["class"] = classify(d["error"], thresholds)
+    d["class"] = classify(d["error"], thresholds) if thresholds else None
     d["xgid"] = _xgid(d)
     if "tag_ids" in d:
         d["tags"] = sorted(int(t) for t in d.pop("tag_ids").split(",")) if d["tag_ids"] else []
@@ -205,7 +270,7 @@ def decision_from_row(row, thresholds):
 
 
 MATCH_COLUMNS = "m.player1, m.player2, m.event_date, m.filename, " \
-                "(SELECT group_concat(tag_id) FROM decision_tags WHERE decision_id = d.id) AS tag_ids"
+                "(SELECT group_concat(tag_id) FROM position_tags WHERE position_key = d.position_key) AS tag_ids"
 FULL_SELECT = f"SELECT d.id, d.match_id, d.seen_at, {', '.join('d.' + f for f in DECISION_FIELDS)}, {MATCH_COLUMNS} " \
               "FROM decisions d JOIN matches m ON m.id = d.match_id"
 LIST_SELECT = f"SELECT d.id, d.match_id, d.seen_at, {LIST_COLUMNS}, {MATCH_COLUMNS} " \
@@ -218,11 +283,11 @@ def decision_filters(match_ids=None, player=None, player_name=None, kind=None, m
     if tag_ids:
         tag_ids = sorted(set(tag_ids))
         needed = len(tag_ids) if all_tags else 1
-        where.append(f"(SELECT COUNT(*) FROM decision_tags dt WHERE dt.decision_id = d.id "
-                     f"AND dt.tag_id IN ({','.join('?' * len(tag_ids))})) >= ?")
+        where.append(f"(SELECT COUNT(*) FROM position_tags pt WHERE pt.position_key = d.position_key "
+                     f"AND pt.tag_id IN ({','.join('?' * len(tag_ids))})) >= ?")
         params += tag_ids + [needed]
     if untagged:
-        where.append("NOT EXISTS (SELECT 1 FROM decision_tags dt WHERE dt.decision_id = d.id)")
+        where.append("NOT EXISTS (SELECT 1 FROM position_tags pt WHERE pt.position_key = d.position_key)")
     if match_ids:
         where.append(f"d.match_id IN ({','.join('?' * len(match_ids))})")
         params += list(match_ids)
@@ -250,6 +315,27 @@ def query_decisions(conn, thresholds, limit=5000, **filters):
     return [decision_from_row(r, thresholds) for r in conn.execute(sql, params + [limit])]
 
 
+def group_positions(conn, decisions, thresholds):
+    """One entry per position, in the order given. Each carries "copies": every occurrence of that position in the
+    library, whatever the filters, newest match first."""
+    rows = {}
+    for d in decisions:
+        rows.setdefault(d["position_key"], {**d, "copies": []})
+    keys = list(rows)
+    for start in range(0, len(keys), 500):
+        chunk = keys[start:start + 500]
+        for r in conn.execute(
+                f"""SELECT d.id, d.match_id, d.game_no, d.move_no, d.player, d.action, d.error, d.position_key,
+                           m.event_date, m.player1, m.player2
+                    FROM decisions d JOIN matches m ON m.id = d.match_id
+                    WHERE d.position_key IN ({','.join('?' * len(chunk))})
+                    ORDER BY d.match_id DESC, d.game_no, d.move_no, d.id""", chunk):
+            copy = {k: r[k] for k in r.keys() if k != "position_key"}
+            copy["class"] = classify(r["error"], thresholds)
+            rows[r["position_key"]]["copies"].append(copy)
+    return list(rows.values())
+
+
 def decisions_by_ids(conn, ids, thresholds, with_legal=False):
     if not ids:
         return []
@@ -266,7 +352,10 @@ def all_decisions_for_match(conn, match_id, thresholds):
 
 def mark_seen(conn, decision_id):
     with conn:
-        conn.execute("UPDATE decisions SET seen_at = COALESCE(seen_at, ?) WHERE id = ?", (now_local(), decision_id))
+        conn.execute(
+            """UPDATE decisions SET seen_at = COALESCE(seen_at, ?)
+               WHERE position_key = (SELECT position_key FROM decisions WHERE id = ?)""",
+            (now_local(), decision_id))
 
 
 def set_review_mark(conn, match_id, mark):
@@ -301,9 +390,10 @@ def _name_taken(conn, name, tag_id=None):
 
 def list_tags(conn):
     return [dict(r) for r in conn.execute(
-        """SELECT t.id, t.name, t.color, COUNT(dt.decision_id) AS count
-           FROM tags t LEFT JOIN decision_tags dt ON dt.tag_id = t.id
-           GROUP BY t.id ORDER BY t.name COLLATE NOCASE""")]
+        """SELECT t.id, t.name, t.color,
+                  (SELECT COUNT(*) FROM position_tags pt WHERE pt.tag_id = t.id AND EXISTS (
+                       SELECT 1 FROM decisions d WHERE d.position_key = pt.position_key)) AS count
+           FROM tags t ORDER BY t.name COLLATE NOCASE""")]
 
 
 def get_tag(conn, tag_id):
@@ -338,18 +428,20 @@ def delete_tag(conn, tag_id):
 def merge_tag(conn, source_id, target_id):
     with conn:
         conn.execute(
-            """INSERT OR IGNORE INTO decision_tags (decision_id, tag_id, added_at)
-               SELECT decision_id, ?, added_at FROM decision_tags WHERE tag_id = ?""",
+            """INSERT OR IGNORE INTO position_tags (position_key, tag_id, added_at)
+               SELECT position_key, ?, added_at FROM position_tags WHERE tag_id = ?""",
             (target_id, source_id),
         )
         conn.execute("DELETE FROM tags WHERE id = ?", (source_id,))
 
 
 def set_decision_tag(conn, tag_id, add=(), remove=()):
+    key_of = "(SELECT position_key FROM decisions WHERE id = ?)"
     with conn:
-        conn.executemany("INSERT OR IGNORE INTO decision_tags (decision_id, tag_id, added_at) VALUES (?, ?, ?)",
+        conn.executemany(f"INSERT OR IGNORE INTO position_tags (position_key, tag_id, added_at) VALUES ({key_of}, ?, ?)",
                          [(i, tag_id, now_local()) for i in add])
-        conn.executemany("DELETE FROM decision_tags WHERE decision_id = ? AND tag_id = ?", [(i, tag_id) for i in remove])
+        conn.executemany(f"DELETE FROM position_tags WHERE position_key = {key_of} AND tag_id = ?",
+                         [(i, tag_id) for i in remove])
 
 
 def existing_decisions(conn, ids):
@@ -403,14 +495,14 @@ def record_attempt(conn, decision_id, answer, error, correct, revealed=False):
 
 PRACTICE_STATE = """
     LEFT JOIN (
-        SELECT decision_id, correct AS last_correct, at AS last_at,
-               ROW_NUMBER() OVER (PARTITION BY decision_id ORDER BY id DESC) AS rn
-        FROM practice_attempts
-    ) last ON last.decision_id = d.id AND last.rn = 1
+        SELECT pd.position_key, a.correct AS last_correct, a.at AS last_at,
+               ROW_NUMBER() OVER (PARTITION BY pd.position_key ORDER BY a.id DESC) AS rn
+        FROM practice_attempts a JOIN decisions pd ON pd.id = a.decision_id
+    ) last ON last.position_key = d.position_key AND last.rn = 1
     LEFT JOIN (
-        SELECT decision_id, COUNT(*) AS attempts, SUM(correct) AS correct_attempts
-        FROM practice_attempts GROUP BY decision_id
-    ) totals ON totals.decision_id = d.id
+        SELECT pd.position_key, COUNT(*) AS attempts, SUM(a.correct) AS correct_attempts
+        FROM practice_attempts a JOIN decisions pd ON pd.id = a.decision_id GROUP BY pd.position_key
+    ) totals ON totals.position_key = d.position_key
 """
 PRACTICE_MODES = {
     "due": "(last.last_correct IS NULL OR last.last_correct = 0)",
@@ -426,28 +518,34 @@ def practice_queue(conn, mode="due", limit=500, **filters):
     where, params = decision_filters(include_forced=False, **filters)
     where.append(PRACTICE_MODES[mode])
     rows = conn.execute(
-        f"""SELECT d.id, d.error, last.last_correct, last.last_at, COALESCE(totals.attempts, 0) AS attempts
+        f"""SELECT d.id, d.error, d.position_key, last.last_correct, last.last_at,
+                   COALESCE(totals.attempts, 0) AS attempts
             FROM decisions d JOIN matches m ON m.id = d.match_id {PRACTICE_STATE}
             WHERE {' AND '.join(where)}
             ORDER BY CASE WHEN last.last_correct = 0 THEN 0 WHEN last.last_correct IS NULL THEN 1 ELSE 2 END,
-                     last.last_at, d.error DESC, d.id
-            LIMIT ?""",
-        params + [limit],
+                     last.last_at, d.error DESC, d.id""",
+        params,
     )
-    return [dict(r) for r in rows]
+    queue, asked = [], set()
+    for row in rows:
+        if row["position_key"] not in asked:
+            asked.add(row["position_key"])
+            queue.append({k: row[k] for k in row.keys() if k != "position_key"})
+    return queue[:limit]
 
 
 def practice_stats(conn, **filters):
     where, params = decision_filters(include_forced=False, **filters)
     row = conn.execute(
         f"""SELECT COUNT(*) AS positions,
-                   SUM(CASE WHEN last.last_correct IS NULL THEN 1 ELSE 0 END) AS new,
-                   SUM(CASE WHEN last.last_correct = 0 THEN 1 ELSE 0 END) AS missed,
-                   SUM(CASE WHEN last.last_correct = 1 THEN 1 ELSE 0 END) AS mastered,
-                   COALESCE(SUM(totals.attempts), 0) AS attempts,
-                   COALESCE(SUM(totals.correct_attempts), 0) AS correct
-            FROM decisions d JOIN matches m ON m.id = d.match_id {PRACTICE_STATE}
-            WHERE {' AND '.join(where)}""",
+                   SUM(CASE WHEN last_correct IS NULL THEN 1 ELSE 0 END) AS new,
+                   SUM(CASE WHEN last_correct = 0 THEN 1 ELSE 0 END) AS missed,
+                   SUM(CASE WHEN last_correct = 1 THEN 1 ELSE 0 END) AS mastered,
+                   COALESCE(SUM(attempts), 0) AS attempts,
+                   COALESCE(SUM(correct_attempts), 0) AS correct
+            FROM (SELECT d.position_key, last.last_correct, totals.attempts, totals.correct_attempts
+                  FROM decisions d JOIN matches m ON m.id = d.match_id {PRACTICE_STATE}
+                  WHERE {' AND '.join(where)} GROUP BY d.position_key)""",
         params,
     ).fetchone()
     stats = {k: row[k] or 0 for k in row.keys()}
@@ -464,5 +562,7 @@ def practice_stats(conn, **filters):
 
 def decision_practice_history(conn, decision_id):
     return [dict(r) for r in conn.execute(
-        "SELECT at, answer, error, correct, revealed FROM practice_attempts WHERE decision_id = ? ORDER BY id DESC LIMIT 20",
+        """SELECT a.at, a.answer, a.error, a.correct, a.revealed FROM practice_attempts a
+           JOIN decisions d ON d.id = a.decision_id
+           WHERE d.position_key = (SELECT position_key FROM decisions WHERE id = ?) ORDER BY a.id DESC LIMIT 20""",
         (decision_id,))]

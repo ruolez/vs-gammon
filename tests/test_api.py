@@ -1,3 +1,4 @@
+import hashlib
 import io
 import os
 import shutil
@@ -11,7 +12,8 @@ except ImportError:
     raise unittest.SkipTest("Flask is only installed in the container")
 
 from app import db, jobs  # noqa: E402
-from app.importer import upload_path  # noqa: E402
+from app.importer import fill_missing_keys, upload_path  # noqa: E402
+from app.matfile import parse_mat_header  # noqa: E402
 from app.engine.runner import EngineError  # noqa: E402
 from app.engine.walk import walk_match  # noqa: E402
 from app.main import create_app  # noqa: E402
@@ -53,8 +55,15 @@ class ApiTestCase(unittest.TestCase):
         return self.client.post("/api/matches", data={"files": (io.BytesIO(content), name)},
                                 content_type="multipart/form-data").get_json()["results"]
 
-    def analysed_match(self, analyse=fake_analyse):
-        match_id = self.upload()[0]["id"]
+    def fixture_bytes(self):
+        with open(os.path.join(FIXTURES, "galaxy_3pt.mat"), "rb") as f:
+            return f.read()
+
+    def other_match_bytes(self):
+        return self.fixture_bytes().replace(b"fishsoup", b"seaweed")
+
+    def analysed_match(self, analyse=fake_analyse, content=None):
+        match_id = self.upload(content=content)[0]["id"]
         jobs.process_next(self.conn, self.data_dir, analyse=analyse)
         return match_id
 
@@ -73,6 +82,22 @@ class UploadMatches(ApiTestCase):
         first = self.upload()[0]
         second = self.upload(name="copy.mat")[0]
         self.assertEqual((second["id"], second["duplicate"]), (first["id"], True))
+
+    def test_same_match_in_a_different_file_is_not_imported_twice(self):
+        first = self.upload()[0]
+        later = self.fixture_bytes().replace(b'Elo "2246,97/0"', b'Elo "2251,40/0"').replace(b"\n", b"\r\n")
+        second = self.upload(name="downloaded-again.mat", content=later)[0]
+        events = self.client.get("/api/history").get_json()["events"]
+        self.assertEqual(
+            ((second["id"], second["duplicate"]), events[0]["kind"],
+             len(self.client.get("/api/matches").get_json()["matches"])),
+            ((first["id"], True), "duplicate", 1),
+        )
+
+    def test_another_match_of_the_same_players_is_imported(self):
+        first = self.upload()[0]
+        second = self.upload(name="rematch.mat", content=self.other_match_bytes())[0]
+        self.assertEqual((second["duplicate"], second["id"] != first["id"]), (False, True))
 
     def test_non_match_file_is_rejected(self):
         self.assertEqual(self.upload(name="notes.txt", content=b"hello"),
@@ -208,8 +233,7 @@ class ReviewProgress(ApiTestCase):
 
     def test_decisions_of_several_matches(self):
         first = self.analysed_match()
-        with open(os.path.join(FIXTURES, "galaxy_3pt.mat"), "rb") as f:
-            second = self.upload(name="again.mat", content=f.read() + b"\n")[0]["id"]
+        second = self.upload(name="rematch.mat", content=self.other_match_bytes())[0]["id"]
         jobs.process_next(self.conn, self.data_dir, analyse=fake_analyse)
         query = lambda ids: {d["match_id"] for d in self.client.get(
             f"/api/decisions?match_id={ids}&min_error=0.03").get_json()["decisions"]}
@@ -332,8 +356,13 @@ class Tags(ApiTestCase):
         return [(t["name"], t["color"], t["count"]) for t in self.client.get("/api/tags").get_json()["tags"]]
 
     def decision_ids(self, **params):
-        query = "&".join(f"{k}={v}" for k, v in {"include_forced": 1, **params}.items())
+        query = "&".join(f"{k}={v}" for k, v in {"include_forced": 1, "group": "position", **params}.items())
         return [d["id"] for d in self.client.get(f"/api/decisions?{query}").get_json()["decisions"]]
+
+    def positions(self, ids):
+        keys = {d["id"]: d["position_key"] for d in
+                self.client.get("/api/decisions?include_forced=1").get_json()["decisions"]}
+        return sorted(keys[i] for i in ids)
 
     def tag(self, tag_id, add=(), remove=()):
         return self.client.post(f"/api/tags/{tag_id}/decisions", json={"add": list(add), "remove": list(remove)})
@@ -360,7 +389,7 @@ class Tags(ApiTestCase):
         self.tag(blitz, add=ids[:3])
         self.tag(prime, add=ids[2:4])
         self.tag(blitz, remove=[ids[0]])
-        tagged = {d["id"]: d["tags"] for d in self.client.get("/api/decisions?include_forced=1").get_json()["decisions"]}
+        tagged = {d["id"]: d["tags"] for d in self.client.get("/api/decisions?include_forced=1&group=position").get_json()["decisions"]}
         self.assertEqual(
             ([tagged[i] for i in ids[:5]], self.decision_ids(tag=blitz), self.decision_ids(tag=f"{blitz},{prime}"),
              self.decision_ids(tag="none"), self.tags()),
@@ -384,13 +413,13 @@ class Tags(ApiTestCase):
 
     def test_practice_queue_matches_all_tags(self):
         self.analysed_match()
-        ids = [d["id"] for d in self.client.get("/api/decisions?min_error=0").get_json()["decisions"]]
+        ids = self.decision_ids(min_error=0, include_forced=0)
         blitz = self.create("Blitz").get_json()["tag"]["id"]
         prime = self.create("Prime").get_json()["tag"]["id"]
         self.tag(blitz, add=ids[0:2])
         self.tag(prime, add=ids[1:3])
         items = self.client.get(f"/api/practice/queue?tag={blitz},{prime}&tag_match=all&mode=all").get_json()["items"]
-        self.assertEqual([i["id"] for i in items], [ids[1]])
+        self.assertEqual(self.positions(i["id"] for i in items), self.positions([ids[1]]))
 
     def test_rename_and_recolour(self):
         tag_id = self.create("Blitz").get_json()["tag"]["id"]
@@ -442,11 +471,123 @@ class Tags(ApiTestCase):
 
     def test_practice_queue_by_tag_includes_good_moves(self):
         self.analysed_match()
-        good = [d["id"] for d in self.client.get("/api/decisions?min_error=0").get_json()["decisions"] if d["error"] == 0]
+        good = [d["id"] for d in self.client.get("/api/decisions?min_error=0&group=position").get_json()["decisions"]
+                if d["error"] == 0]
         tag_id = self.create("Quiz").get_json()["tag"]["id"]
         self.tag(tag_id, add=good[:2])
         items = self.client.get(f"/api/practice/queue?tag={tag_id}&mode=all").get_json()["items"]
-        self.assertEqual(sorted(i["id"] for i in items), sorted(good[:2]))
+        self.assertEqual(self.positions(i["id"] for i in items), self.positions(good[:2]))
+
+
+class DuplicatesInTheLibrary(ApiTestCase):
+    """Duplicates imported before they were detected: the second copy is inserted the way old versions did."""
+
+    def old_style_copy(self):
+        raw = self.fixture_bytes().replace(b'Elo "2246,97/0"', b'Elo "2251,40/0"')
+        sha = hashlib.sha256(raw).hexdigest()
+        with open(upload_path(self.data_dir, sha), "wb") as f:
+            f.write(raw)
+        match_id = db.insert_match(self.conn, "old-copy.mat", sha, parse_mat_header(raw.decode()))
+        jobs.process_next(self.conn, self.data_dir, analyse=fake_analyse)
+        with self.conn:
+            self.conn.execute("UPDATE matches SET content_key = NULL")
+        fill_missing_keys(self.conn, self.data_dir)
+        return match_id, sha
+
+    def test_matches_list_points_duplicates_at_the_kept_copy(self):
+        kept = self.analysed_match()
+        copy, _ = self.old_style_copy()
+        listed = {m["id"]: m["duplicate_of"] for m in self.client.get("/api/matches").get_json()["matches"]}
+        self.assertEqual(listed, {kept: None, copy: kept})
+
+    def test_removing_duplicates_keeps_practice_and_deletes_the_file(self):
+        kept = self.analysed_match()
+        copy, sha = self.old_style_copy()
+        answered = self.client.get(f"/api/decisions?match_id={copy}&kind=cube").get_json()["decisions"][0]
+        self.client.post(f"/api/practice/{answered['id']}/reveal")
+        removed = self.client.post("/api/matches/remove-duplicates").get_json()["removed"]
+        history = self.client.get(f"/api/decisions/{answered['id']}")
+        kept_twin = next(d for d in self.client.get(f"/api/decisions?match_id={kept}&include_forced=1")
+                         .get_json()["decisions"] if d["position_key"] == answered["position_key"])
+        self.assertEqual(
+            (removed, history.status_code, os.path.exists(upload_path(self.data_dir, sha)),
+             len(self.client.get(f"/api/decisions/{kept_twin['id']}").get_json()["decision"]["practice"]),
+             [m["id"] for m in self.client.get("/api/matches").get_json()["matches"]]),
+            ([copy], 404, False, 1, [kept]),
+        )
+
+
+class SamePositionInSeveralMatches(ApiTestCase):
+    def two_matches(self):
+        return self.analysed_match(), self.analysed_match(content=self.other_match_bytes())
+
+    def grouped(self, query=""):
+        return self.client.get(f"/api/decisions?include_forced=1&group=position{query}").get_json()["decisions"]
+
+    def test_listed_once_with_every_copy(self):
+        first, second = self.two_matches()
+        every = self.client.get("/api/decisions?include_forced=1").get_json()["decisions"]
+        grouped = self.grouped()
+        self.assertEqual(
+            (len(grouped), sum(len(d["copies"]) for d in grouped), {c["match_id"] for c in grouped[0]["copies"]}),
+            (len({d["position_key"] for d in every}), len(every), {first, second}),
+        )
+
+    def test_a_tag_covers_every_copy(self):
+        first, second = self.two_matches()
+        tag_id = self.client.post("/api/tags", json={"name": "Opening", "color": "green"}).get_json()["tag"]["id"]
+        target = self.grouped(f"&match_id={first}&kind=checker")[0]
+        self.client.post(f"/api/tags/{tag_id}/decisions", json={"add": [target["id"]]})
+        tagged = {d["match_id"] for d in self.client.get(f"/api/decisions?tag={tag_id}").get_json()["decisions"]}
+        self.assertEqual((tagged, self.client.get("/api/tags").get_json()["tags"][0]["count"]), ({first, second}, 1))
+
+    def test_practice_asks_a_position_once_and_remembers_it_for_every_copy(self):
+        first, second = self.two_matches()
+        queue = lambda: self.client.get("/api/practice/queue?mode=due&min_error=0").get_json()
+        before = queue()
+        self.client.post(f"/api/practice/{before['items'][0]['id']}/reveal")
+        positions = {d["position_key"] for d in self.client.get("/api/decisions?min_error=0").get_json()["decisions"]}
+        after = queue()
+        self.assertEqual(
+            (len(before["items"]), before["stats"]["positions"], after["stats"]["new"], after["stats"]["missed"]),
+            (len(positions), len(positions), len(positions) - 1, 1),
+        )
+
+    def test_copies_cover_the_whole_library_when_one_match_is_shown(self):
+        first, second = self.two_matches()
+        rows = self.grouped(f"&match_id={first}")
+        self.assertEqual(({r["match_id"] for r in rows}, {c["match_id"] for c in rows[0]["copies"]}),
+                         ({first}, {first, second}))
+
+    def test_opening_a_position_marks_it_seen_in_every_match(self):
+        first, second = self.two_matches()
+        target = self.grouped(f"&match_id={first}&min_error=0.03")[0]
+        self.client.post(f"/api/decisions/{target['id']}/seen")
+        seen = {d["match_id"] for d in self.client.get("/api/decisions?include_forced=1").get_json()["decisions"]
+                if d["seen_at"] and d["position_key"] == target["position_key"]}
+        self.assertEqual(seen, {first, second})
+
+
+class TagsFromOlderVersions(ApiTestCase):
+    def test_decision_tags_become_position_tags(self):
+        match_id = self.analysed_match()
+        tag_id = self.client.post("/api/tags", json={"name": "Old", "color": "red"}).get_json()["tag"]["id"]
+        decision = self.client.get(f"/api/decisions?match_id={match_id}&kind=checker").get_json()["decisions"][0]
+        with self.conn:
+            self.conn.execute("CREATE TABLE decision_tags (decision_id INTEGER, tag_id INTEGER, added_at TEXT)")
+            self.conn.execute("INSERT INTO decision_tags VALUES (?, ?, '2026-11-01T10:00:00')", (decision["id"], tag_id))
+            self.conn.execute("UPDATE decisions SET position_key = NULL")
+        fill_missing_keys(self.conn, self.data_dir)
+        tagged = self.client.get(f"/api/decisions?tag={tag_id}").get_json()["decisions"]
+        table_left = self.conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'decision_tags'").fetchone()
+        self.assertEqual(([d["id"] for d in tagged], table_left), ([decision["id"]], None))
+
+
+class OldPageAddresses(ApiTestCase):
+    def test_review_and_positions_redirect_to_moves(self):
+        responses = [self.client.get("/review?match=4&focus=9"), self.client.get("/positions")]
+        self.assertEqual([(r.status_code, r.headers["Location"]) for r in responses],
+                         [(302, "/moves?match=4&focus=9"), (302, "/moves")])
 
 
 class Folders(ApiTestCase):

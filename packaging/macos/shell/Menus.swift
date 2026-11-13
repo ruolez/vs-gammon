@@ -56,10 +56,9 @@ enum Menus {
         main.addItem(menu("View", [
             item("Dashboard", sel, "1", represented: "/"),
             item("Practice", sel, "2", represented: "/practice"),
-            item("Review", sel, "3", represented: "/review"),
-            item("Positions", sel, "4", represented: "/positions"),
-            item("Matches", sel, "5", represented: "/matches"),
-            item("History", sel, "6", represented: "/history"),
+            item("Moves", sel, "3", represented: "/moves"),
+            item("Matches", sel, "4", represented: "/matches"),
+            item("History", sel, "5", represented: "/history"),
             .separator(),
             item("Back", #selector(AppDelegate.goBack(_:)), "["),
             item("Forward", #selector(AppDelegate.goForward(_:)), "]"),

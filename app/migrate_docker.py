@@ -5,6 +5,7 @@ import sqlite3
 from urllib.parse import quote
 
 from app import db
+from app.importer import fill_missing_keys
 
 
 def _source_db(source):
@@ -44,5 +45,6 @@ def import_docker_data(source, conn, data_dir, export_dir):
     finally:
         src.close()
     db.migrate(conn)
+    fill_missing_keys(conn, data_dir)
     db.requeue_interrupted(conn)
     return conn.execute("SELECT COUNT(*) FROM matches").fetchone()[0]

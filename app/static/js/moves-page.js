@@ -1,12 +1,12 @@
-const PAGE = document.body.dataset.page === "positions" ? "positions" : "review";
+const PREFS_KEY = "moves.filters";
 
 const state = {
-  matches: [], picked: new Set(), thresholds: null, decisions: [], selected: new Set(), current: null, focus: null,
+  matches: [], picked: new Set(), thresholds: null, decisions: [], selected: new Set(), current: null, shown: null, focus: null,
   arrows: new Set(Prefs.get("review.arrows", ["played", "best"])), candidate: null, detail: null,
 };
 
 const FILTER_DEFAULTS = {
-  matches: [], player: "", kind: "", severity: PAGE === "positions" ? "all" : "doubtful", custom: "0.05", game: "", forced: false, tag: "", tagMatch: "any",
+  matches: [], player: "", kind: "", severity: "all", custom: "0.05", game: "", forced: false, tag: "", tagMatch: "any",
 };
 
 function readUrl() {
@@ -34,7 +34,7 @@ function startingFilters(defaultPlayer) {
     if (state.focus && !("player" in fromUrl)) linked.player = "";
     return linked;
   }
-  const saved = Prefs.get(`${PAGE}.filters`, {});
+  const saved = Prefs.get(PREFS_KEY, null) || Prefs.get("positions.filters", {});
   if (saved.match && !saved.matches) saved.matches = [saved.match];
   delete saved.match;
   return { ...base, ...saved };
@@ -50,7 +50,7 @@ function rememberFilters(f) {
     const match = onlyMatch(f);
     player = match ? `name:${player === "1" ? match.player1 : match.player2}` : "";
   }
-  Prefs.set(`${PAGE}.filters`, { ...f, player });
+  Prefs.set(PREFS_KEY, { ...f, player });
 }
 
 function currentFilters() {
@@ -73,7 +73,7 @@ function writeUrl(f) {
   if (f.forced) p.set("forced", "1");
   if (f.tag) p.set("tag", f.tag);
   if (f.tag.includes(",") && f.tagMatch === "all") p.set("tag_match", "all");
-  history.replaceState(null, "", `/${PAGE}${p.toString() ? `?${p}` : ""}`);
+  history.replaceState(null, "", `/moves${p.toString() ? `?${p}` : ""}`);
 }
 
 function minError(f) {
@@ -116,7 +116,7 @@ async function loadDecisions() {
   rememberFilters(f);
   $("custom-field").hidden = f.severity !== "custom";
   $("review-sub").textContent = subtitle();
-  const q = new URLSearchParams({ min_error: minError(f) });
+  const q = new URLSearchParams({ min_error: minError(f), group: "position" });
   if (f.matches.length) q.set("match_id", f.matches.join(","));
   if (f.player.startsWith("name:")) q.set("player_name", f.player.slice(5));
   else if (f.player) q.set("player", f.player);
@@ -132,10 +132,10 @@ async function loadDecisions() {
     const visible = new Set(decisions.map((d) => d.id));
     state.selected = new Set([...state.selected].filter((id) => visible.has(id)));
     renderRows();
-    const wanted = state.focus || state.current;
+    const wanted = state.focus || state.shown;
     state.focus = null;
-    const keep = decisions.find((d) => d.id === wanted) || decisions[0];
-    showDetail(keep ? keep.id : null);
+    const keep = rowOf(wanted) || decisions[0];
+    showDetail(keep ? keep.id : null, keep && keep.copies.some((c) => c.id === wanted) ? wanted : null);
     if (keep) document.querySelector(`.drow[data-id="${keep.id}"]`)?.scrollIntoView({ block: "center" });
   } catch (err) {
     toast(err.message, true);
@@ -165,8 +165,26 @@ function tagsChanged() {
   if (d) renderTagLine(d);
 }
 
+function rowOf(id) {
+  return state.decisions.find((d) => d.id === id || (d.copies || []).some((c) => c.id === id));
+}
+
 function renderTagLine(d) {
-  if ($("tag-line")) Tags.mountLine($("tag-line"), d, () => renderRows());
+  if (!$("tag-line")) return;
+  Tags.mountLine($("tag-line"), d, () => {
+    const row = rowOf(d.id);
+    if (row && row !== d) row.tags = d.tags;
+    renderRows();
+  });
+}
+
+function cameUp(n) {
+  return t("This position came up {times}", { times: plural(n, "time") });
+}
+
+function copiesBadge(d) {
+  const n = (d.copies || []).length;
+  return n > 1 ? `<span class="copies-badge" title="${cameUp(n)}">×${n}</span>` : "";
 }
 
 function renderRows() {
@@ -174,13 +192,12 @@ function renderRows() {
   $("rows").innerHTML = state.decisions.map((d) => `
     <div class="drow ${d.id === state.current ? "current" : ""}" data-id="${d.id}" role="button" tabindex="-1">
       <input type="checkbox" data-select="${d.id}" ${state.selected.has(d.id) ? "checked" : ""} aria-label="${t("Select for export")}">
-      <span class="where">${all ? `${esc(shortDate(d.event_date))}<br>` : ""}${t("G{game} · {move}", { game: d.game_no, move: d.move_no })}</span>
+      <span class="where">${all ? `${esc(shortDate(d.event_date))}<br>` : ""}${t("G{game} · {move}", { game: d.game_no, move: d.move_no })}${copiesBadge(d)}</span>
       <span class="what"><span class="mv">${rowWhat(d)}</span><span class="who" title="${t("Best")}: ${esc(t(d.best))}">${rowWho(d)}</span>${rowTags(d)}</span>
       <span class="err"><span class="v">${formatLoss(d.error)}</span><span class="sevtxt ${d.class || "ok"}">${d.class ? SEVERITY_LABEL[d.class] : t("Good")}</span></span>
-    </div>`).join("") || (PAGE === "positions"
-    ? `<div class="empty">${icon("tag")}<strong>${t("No positions here")}</strong><p>${t("No positions match these filters. Try another match or tag.")}</p></div>`
-    : `<div class="empty">${icon("check")}<strong>${t("Nothing to review")}</strong><p>${t('No decisions match these filters. Try "Every decision" or another match.')}</p></div>`);
-  $("result-count").textContent = plural(state.decisions.length, "decision");
+    </div>`).join("")
+    || `<div class="empty">${icon("review")}<strong>${t("No positions here")}</strong><p>${t("No positions match these filters. Try another match or tag.")}</p></div>`;
+  $("result-count").textContent = plural(state.decisions.length, "position");
   updateSelection();
 }
 
@@ -227,10 +244,12 @@ function renderBoardPanel(d) {
     </div>
     ${pills}
     <div class="tag-line" id="tag-line"></div>
+    ${copiesList(d)}
     <div class="xgid"><code title="XGID">${esc(d.xgid)}</code><button class="btn sm ghost" id="copy-xgid">${icon("copy")}${t("Copy XGID")}</button></div>`;
   drawBoard(d);
   renderTagLine(d);
-  const index = state.decisions.findIndex((x) => x.id === d.id);
+  $("board-panel").querySelectorAll("[data-copy]").forEach((el) => el.addEventListener("click", () => showDetail(state.current, Number(el.dataset.copy))));
+  const index = state.decisions.findIndex((x) => x.id === state.current);
   $("prev-dec").disabled = index <= 0;
   $("next-dec").disabled = index < 0 || index >= state.decisions.length - 1;
   $("prev-dec").addEventListener("click", () => step(-1));
@@ -250,6 +269,17 @@ function renderBoardPanel(d) {
       toast(t("Copy failed. Select the text and copy it by hand."), true);
     }
   });
+}
+
+function copiesList(d) {
+  const copies = d.copies || [];
+  if (copies.length < 2) return "";
+  return `<div class="copies"><h3>${cameUp(copies.length)}</h3><ul>${copies.map((c) => `
+    <li><button type="button" class="copy ${c.id === d.id ? "current" : ""}" data-copy="${c.id}" aria-pressed="${c.id === d.id}">
+      <span class="copy-where">${esc(shortDate(c.event_date))} · ${esc(c.player1)} ${t("vs")} ${esc(c.player2)} · ${t("G{game} · {move}", { game: c.game_no, move: c.move_no })}</span>
+      <span class="copy-what">${esc(playerName(c, c.player))}: ${rowWhat({ ...c, kind: d.kind })}</span>
+      <span class="copy-err ${c.class || "ok"}">${formatLoss(c.error)}</span>
+    </button></li>`).join("")}</ul></div>`;
 }
 
 function drawBoard(d) {
@@ -320,23 +350,35 @@ function renderDetail(d) {
   renderAnalysis(d);
 }
 
-async function showDetail(id) {
-  if (state.current !== id) {
+async function showDetail(id, copyId = null) {
+  const shown = copyId || id;
+  if (state.shown !== shown) {
     state.candidate = null;
     Tags.closePicker();
   }
   state.current = id;
+  state.shown = shown;
   document.querySelectorAll(".drow").forEach((r) => r.classList.toggle("current", Number(r.dataset.id) === id));
   if (!id) {
     $("board-panel").innerHTML = `<div class="empty">${icon("review")}<strong>${t("No decision selected")}</strong><p>${t("Pick a decision on the left.")}</p></div>`;
     $("analysis").innerHTML = "";
     return;
   }
-  const d = state.decisions.find((x) => x.id === id);
-  if (d) {
-    renderDetail(d);
-    if (PAGE === "review") markSeen(d);
+  const row = state.decisions.find((x) => x.id === id);
+  if (!row) return;
+  let d = row;
+  if (shown !== row.id) {
+    try {
+      const { decision } = await api.get(`/api/decisions/${shown}`);
+      if (state.shown !== shown) return;
+      d = { ...decision, copies: row.copies };
+    } catch (err) {
+      toast(err.message, true);
+      return;
+    }
   }
+  renderDetail(d);
+  markSeen(d);
 }
 
 function markSeen(d) {
@@ -406,7 +448,7 @@ function toggleMatchMenu(open) {
 
 function pickedChanged() {
   renderMatchMenu();
-  const kept = Prefs.get(`${PAGE}.filters`, {}).player || "";
+  const kept = Prefs.get(PREFS_KEY, {}).player || "";
   fillPlayerAndGame({ ...currentFilters(), player: kept, game: "" });
   loadDecisions();
 }

@@ -162,7 +162,7 @@ function showDone() {
     <h2>${pct >= 80 ? t("Strong session") : pct >= 50 ? t("Good work") : t("Keep at it")}</h2>
     <p class="muted">${t("{pct}% right. Missed positions stay due until you solve them.", { pct })}</p>
     <div class="row-gap top"><button class="btn lg" id="again">${icon("refresh")}${t("Practise again")}</button><a class="btn lg secondary" href="/">${t("Back to dashboard")}</a></div></div>`;
-  $("panel").innerHTML = `<h2>${t("Next steps")}</h2><div class="tips"><div>${t("Look at the positions you missed in Review, with every candidate move.")}</div><div>${t("Import new matches and their errors join your practice list.")}</div></div>`;
+  $("panel").innerHTML = `<h2>${t("Next steps")}</h2><div class="tips"><div>${t("Look at the positions you missed in Moves, with every candidate move.")}</div><div>${t("Import new matches and their errors join your practice list.")}</div></div>`;
   $("again").addEventListener("click", startSession);
   api.get(`/api/practice/stats?${queryString()}`).then(({ stats }) => renderStats(stats)).catch(() => {});
   Shell.refresh();
@@ -479,7 +479,7 @@ function renderResult() {
   bar.className = `answer-bar ${tone}`;
   bar.innerHTML = `${feedbackHtml()}<span class="spacer"></span>
     ${d.kind === "checker" && !r.correct ? `<button class="btn ghost" id="retry">${icon("reset")}${t("Try again")}</button>` : ""}
-    <a class="btn ghost" href="/review?match=${d.match_id}&focus=${d.id}&min_error=all">${t("Open in Review")}</a>
+    <a class="btn ghost" href="/moves?match=${d.match_id}&focus=${d.id}&min_error=all">${t("Open in Moves")}</a>
     <button class="btn lg ${tone === "right" ? "go" : tone === "wrong" ? "stop" : ""}" id="next">${last ? t("Finish") : t("Continue")} <span class="kbd">↵</span></button>`;
   if ($("retry")) $("retry").addEventListener("click", retry);
   $("next").addEventListener("click", next);
@@ -575,7 +575,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (params.get("player_name")) $("s-player").value = params.get("player_name");
     const wanted = params.get("match_id");
     if (wanted && ![...$("s-match").options].some((o) => o.value === wanted)) {
-      $("s-match").insertAdjacentHTML("beforeend", `<option value="${esc(wanted)}">${t("{matches} from Review", { matches: plural(wanted.split(",").length, "match") })}</option>`);
+      $("s-match").insertAdjacentHTML("beforeend", `<option value="${esc(wanted)}">${t("{matches} from Moves", { matches: plural(wanted.split(",").length, "match") })}</option>`);
     }
     if (wanted) $("s-match").value = wanted;
     if (params.get("kind")) $("s-kind").value = params.get("kind");

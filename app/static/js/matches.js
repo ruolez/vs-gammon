@@ -48,14 +48,34 @@ function renderMatches(matches) {
         <td class="nowrap"><div class="cell-title tabular">${esc(shortDate(m.event_date || m.created_at))}</div><div class="cell-sub">${esc(m.event_time || "")}</div></td>
         <td><div class="cell-title">${length}${games}${m.games ? ` · ${scoreLine(m)}` : ""}</div><div class="cell-sub" title="${esc(m.source_path || m.filename)}">${source}${m.site ? ` · ${esc(m.site)}` : ""}</div></td>
         <td><div class="players">${playerLine(m, 1)}${playerLine(m, 2)}</div></td>
-        <td class="nowrap">${statusLabel(m)}${m.plies !== null && m.status === "done" ? `<div class="cell-sub">${m.plies}-ply · ${t("{n} s", { n: m.analysis_seconds })}</div>` : ""}${m.review && m.review.reviewed ? `<div class="cell-sub reviewed">${icon("check")}${t("Reviewed")}</div>` : ""}${m.error ? `<div class="cell-sub status error">${esc(I18n.server(m.error))}</div>` : ""}</td>
+        <td class="nowrap">${statusLabel(m)}${m.plies !== null && m.status === "done" ? `<div class="cell-sub">${m.plies}-ply · ${t("{n} s", { n: m.analysis_seconds })}</div>` : ""}${m.review && m.review.reviewed ? `<div class="cell-sub reviewed">${icon("check")}${t("Reviewed")}</div>` : ""}${m.duplicate_of ? `<div class="cell-sub duplicate">${t("Duplicate")}</div>` : ""}${m.error ? `<div class="cell-sub status error">${esc(I18n.server(m.error))}</div>` : ""}</td>
         <td><div class="row-actions">
-          ${m.status === "done" ? `<a class="btn sm" href="/review?match=${m.id}">${t("Review")}</a><a class="btn sm secondary" href="/practice?match_id=${m.id}">${t("Practise")}</a>` : ""}
+          ${m.status === "done" ? `<a class="btn sm" href="/moves?match=${m.id}&min_error=doubtful">${t("Moves")}</a><a class="btn sm secondary" href="/practice?match_id=${m.id}">${t("Practise")}</a>` : ""}
           <button class="btn sm ghost icon-only" data-reanalyze="${m.id}" title="${t("Re-analyse")}" aria-label="${t("Re-analyse")}" ${m.status === "analyzing" ? "disabled" : ""}>${icon("refresh")}</button>
           <button class="btn sm ghost icon-only" data-delete="${m.id}" title="${t("Delete")}" aria-label="${t("Delete")}">${icon("trash")}</button>
         </div></td>
       </tr>`;
     }).join("")}</tbody></table>`;
+}
+
+function renderDuplicates(matches) {
+  const n = matches.filter((m) => m.duplicate_of).length;
+  const note = $("duplicates");
+  note.hidden = n === 0;
+  if (!n) return;
+  note.innerHTML = `<span class="t">${icon("matches")}${t("Duplicates found: {matches}", { matches: plural(n, "match") })}</span>
+    <span class="d">${t("The copy imported first is kept, along with your practice answers from every copy.")}</span>
+    <button class="btn sm" id="remove-duplicates">${t("Remove duplicates")}</button>`;
+  $("remove-duplicates").addEventListener("click", async () => {
+    try {
+      const { removed } = await api.post("/api/matches/remove-duplicates");
+      toast(t("Removed {matches}", { matches: plural(removed.length, "match") }));
+      refresh();
+      Shell.refresh();
+    } catch (err) {
+      toast(err.message, true);
+    }
+  });
 }
 
 function renderWatch(folders) {
@@ -77,6 +97,7 @@ async function refresh() {
     const t = settings.thresholds;
     $("threshold-note").textContent = window.t("Doubtful ≥ {a} · bad ≥ {b} · very bad ≥ {c}", { a: t.doubtful, b: t.bad, c: t.very_bad });
     renderMatches(matches);
+    renderDuplicates(matches);
     renderWatch(folders);
     clearTimeout(pollTimer);
     if (matches.some((m) => m.status === "queued" || m.status === "analyzing")) pollTimer = setTimeout(refresh, 1500);
