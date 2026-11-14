@@ -21,7 +21,7 @@ function literals(fn) {
 function htmlTexts() {
   const found = new Set();
   for (const html of pages) {
-    const body = html.slice(html.indexOf("<body>")).replace(/<script[\s\S]*?<\/script>/g, "").replace(/<svg[\s\S]*?<\/svg>/g, "");
+    const body = html.slice(html.search(/<body[\s>]/)).replace(/<script[\s\S]*?<\/script>/g, "").replace(/<svg[\s\S]*?<\/svg>/g, "");
     for (const m of body.matchAll(/>([^<>]+)</g)) {
       const text = m[1].trim();
       if (/[A-Za-z]{2}/.test(text)) found.add(text);

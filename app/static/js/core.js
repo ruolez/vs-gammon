@@ -92,6 +92,10 @@ function diceSvg(dice) {
 
 const SEVERITY_LABEL = { very_bad: t("Very bad"), bad: t("Bad"), doubtful: t("Doubtful") };
 
+function errorClass(error, thresholds) {
+  return ["very_bad", "bad", "doubtful"].find((s) => error >= thresholds[s] - 1e-12) || null;
+}
+
 function severityChip(cls) {
   return cls ? `<span class="sev ${cls}">${SEVERITY_LABEL[cls]}</span>` : `<span class="sev ok">${t("Good")}</span>`;
 }

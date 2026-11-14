@@ -40,18 +40,12 @@
     </div>
     <div class="practice-shell">
       <section class="panel stage" id="stage">
-        <div class="prompt" id="prompt">Loading…</div>
-        <div class="position-meta" id="facts"></div>
-        <div class="board-nav">
-          <button type="button" class="nav-arrow" id="prev-pos" aria-label="Previous position" title="Previous position (←)"></button>
-          <div class="stage-board" id="board"></div>
-          <button type="button" class="nav-arrow" id="next-pos" aria-label="Next position" title="Next position (→)"></button>
-        </div>
+        <div class="stage-head"><div class="prompt" id="prompt">Loading…</div><div class="position-meta" id="facts"></div></div>
+        <div class="board-nav solo"><div class="stage-board" id="board"></div></div>
         <div class="answer-bar" id="bar"></div>
       </section>
-      <aside class="side">
+      <aside class="side" id="side" hidden>
         <section class="panel panel-pad" id="panel"></section>
-        <section class="panel panel-pad"><h2>Your progress</h2><p class="scope" id="stats-scope">All time, for the positions these options select</p><div class="mini-stats" id="stats"></div></section>
       </aside>
     </div>
 

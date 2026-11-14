@@ -7,7 +7,7 @@ const state = {
   thresholds: null, matches: [], queue: [], index: 0, results: [], cache: new Map(),
   session: { answered: 0, correct: 0, requeued: new Set() },
   d: null, phase: "idle", start: null, frame: null, remaining: [], history: [], finals: null, selected: null,
-  result: null, arrows: new Set(Prefs.get("practice.arrows", ["yours", "best"])), candidate: null,
+  result: null, candidate: null,
 };
 
 function loadPrefs() {
@@ -69,10 +69,9 @@ function renderSummary() {
   $("summary").innerHTML = chips.map((c, i) => `<span class="chip">${i === 0 ? `<strong>${esc(c)}</strong>` : esc(c)}</span>`).join("");
 }
 
-function renderStats(stats) {
-  const accuracy = stats.attempts ? `${Math.round((100 * stats.correct) / stats.attempts)}%` : "–";
-  const items = [[stats.new, t("new")], [stats.missed, t("missed")], [stats.mastered, t("solved")], [accuracy, t("accuracy · {tries}", { tries: plural(stats.attempts, "try") })]];
-  $("stats").innerHTML = items.map(([n, l]) => `<div class="mini-stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+function showSide(visible) {
+  $("side").hidden = !visible;
+  $("side").parentElement.classList.toggle("with-analysis", visible);
 }
 
 function renderProgress() {
@@ -84,12 +83,6 @@ function renderProgress() {
   $("progress-text").textContent = total
     ? t("{n} of {total} · {done} answered", { n: Math.min(state.index + 1, total), total, done })
     : t("{done} / {total} this session", { done, total });
-}
-
-function renderNav() {
-  const empty = !state.queue.length || state.phase === "idle";
-  $("prev-pos").disabled = empty || (state.index === 0 && state.phase !== "done");
-  $("next-pos").disabled = empty || state.phase === "done";
 }
 
 async function go(delta) {
@@ -113,8 +106,7 @@ async function startSession() {
   savePrefs();
   renderSummary();
   try {
-    const { items, stats } = await api.get(`/api/practice/queue?${queryString()}`);
-    renderStats(stats);
+    const { items } = await api.get(`/api/practice/queue?${queryString()}`);
     const ids = items.map((i) => i.id);
     state.queue = $("s-shuffle").checked ? shuffle(ids) : ids;
     state.index = 0;
@@ -140,20 +132,18 @@ function clearStage(prompt) {
 
 function showEmpty() {
   state.phase = "idle";
-  renderNav();
   clearStage(t("Nothing due here"));
   const why = state.sets.value().tag
     ? t('No positions with this tag match these options. Choose "Everything" to revisit solved ones, or tag more positions on the Positions page.')
     : t('No positions match these options. Choose "Everything" to revisit solved ones, lower the error level, or import another match.');
   $("board").innerHTML = `<div class="empty tall">${icon("check")}<strong>${t("You are all caught up")}</strong><p>${why}</p><button class="btn secondary" id="open-options">${t("Change options")}</button></div>`;
   $("open-options").addEventListener("click", () => toggleOptions(true));
-  $("panel").innerHTML = `<h2>${t("How practice works")}</h2><div class="tips"><div>${t("Every error you make in an analysed match becomes a practice position.")}</div><div>${t("Answer correctly and it counts as solved. Miss it and it comes back first next time.")}</div></div>`;
+  showSide(false);
 }
 
 function showDone() {
   state.phase = "done";
   Tags.closePicker();
-  renderNav();
   const { answered, correct } = state.session;
   const pct = answered ? Math.round((100 * correct) / answered) : 0;
   clearStage(t("Session complete"));
@@ -162,9 +152,8 @@ function showDone() {
     <h2>${pct >= 80 ? t("Strong session") : pct >= 50 ? t("Good work") : t("Keep at it")}</h2>
     <p class="muted">${t("{pct}% right. Missed positions stay due until you solve them.", { pct })}</p>
     <div class="row-gap top"><button class="btn lg" id="again">${icon("refresh")}${t("Practise again")}</button><a class="btn lg secondary" href="/">${t("Back to dashboard")}</a></div></div>`;
-  $("panel").innerHTML = `<h2>${t("Next steps")}</h2><div class="tips"><div>${t("Look at the positions you missed in Moves, with every candidate move.")}</div><div>${t("Import new matches and their errors join your practice list.")}</div></div>`;
+  showSide(false);
   $("again").addEventListener("click", startSession);
-  api.get(`/api/practice/stats?${queryString()}`).then(({ stats }) => renderStats(stats)).catch(() => {});
   Shell.refresh();
 }
 
@@ -186,13 +175,8 @@ function renderContext() {
     ? `<span>${t("{name} to play", { name: who })}</span>${diceSvg(d.dice)}`
     : d.kind === "cube" ? `<span>${t("{name}: double or no double?", { name: who })}</span>`
       : `<span>${t("{doubler} doubles to {n}. {name}: take or pass?", { doubler: esc(playerName(d, d.on_roll)), n: d.cube_value * 2, name: who })}</span>`;
-  $("facts").innerHTML = [
-    `<span class="chip"><strong>${esc(d.player1)}</strong> ${t("vs")} <strong>${esc(d.player2)}</strong> ${esc(shortDate(d.event_date))}</span>`,
-    `<span class="chip">${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })}</span>`,
-    `<span class="chip">${scoreText(d)}</span>`,
-    `<span class="chip">${cubeText(d)}</span>`,
-    `<span class="tag-line" id="tag-line"></span>`,
-  ].join("");
+  const facts = [`${esc(d.player1)} ${t("vs")} ${esc(d.player2)}`, esc(shortDate(d.event_date)), t("game {game}, move {move}", { game: d.game_no, move: d.move_no }), scoreText(d), cubeText(d)].join(" · ");
+  $("facts").innerHTML = `<span class="position-facts small muted" title="${facts}">${facts}</span><span class="tag-line" id="tag-line"></span>`;
   Tags.mountLine($("tag-line"), d, renderSummary);
 }
 
@@ -202,10 +186,9 @@ async function showPosition() {
   const decision = state.cache.get(id);
   const saved = state.results[state.index];
   Tags.closePicker();
-  Object.assign(state, { d: decision, phase: "answer", result: null, candidate: null, selected: null, history: [] });
+  Object.assign(state, { d: decision, phase: "answer", result: null, candidate: null, hover: null, selected: null, history: [] });
   $("bar").hidden = false;
   renderContext();
-  renderNav();
   renderProgress();
   if (decision.kind === "checker") {
     if (!decision.legal) {
@@ -275,22 +258,7 @@ function renderAnswerPhase() {
     bar.querySelectorAll("[data-action]").forEach((el) => el.addEventListener("click", () => submitCube(el.dataset.action)));
   }
   $("reveal").addEventListener("click", reveal);
-  renderAnswerPanel();
-}
-
-function renderAnswerPanel() {
-  const d = state.d;
-  const past = d.practice && d.practice.length
-    ? t(d.practice[0].revealed ? "Seen {times}; last time you looked at the answer." : d.practice[0].correct ? "Seen {times}; last time you got it right." : "Seen {times}; last time you missed it.", { times: plural(d.practice.length, "time") })
-    : t("First time you see this position.");
-  const tips = d.kind === "checker"
-    ? `<div><span class="kbd plain">1</span>${t("Click a checker. With one place to go it moves straight away.")}</div>
-       <div><span class="kbd plain">2</span>${t("With two places to go they light up green: click one.")}</div>
-       <div><span class="kbd plain">⌫</span>${t("Undo a step. Esc resets, Enter checks your move.")}</div>
-       <div><span class="kbd plain">Tab</span>${t("Tab moves between checkers; Enter picks one.")}</div>`
-    : `<div>${t("Decide from {name}'s side, at the bottom of the board.", { name: esc(playerName(d, d.player)) })}</div>
-       <div>${d.kind === "take" ? `<span class="kbd plain">T</span> ${t("Take")} · <span class="kbd plain">P</span> ${t("Pass")}` : `<span class="kbd plain">N</span> ${t("No double")} · <span class="kbd plain">D</span> ${t("Double")}`}</div>`;
-  $("panel").innerHTML = `<h2>${t("Your turn")}</h2><div class="tips">${tips}</div><p class="small muted muted-note">${past}</p>`;
+  showSide(false);
 }
 
 function applyOption(option) {
@@ -406,6 +374,10 @@ function feedbackHtml() {
   return `<div class="feedback"><span class="mark">${icon("x")}</span><div><h3>${label}</h3><p>${t("You lost <strong>{error}</strong>", { error: r.error.toFixed(3) })}${approx}. ${t("Best")}: <strong>${esc(t(best))}</strong></p></div></div>`;
 }
 
+function arrowKinds() {
+  return { yours: (state.result && state.result.class) || "good", best: "good", played: state.d.class || "good" };
+}
+
 function answerLine(kind, label, text, cost) {
   return `<div class="answer-line"><span class="line" style="background:${Board.COLORS[kind]}"></span><span class="lbl">${label}</span><span class="mv">${esc(text)}</span><span class="cost">${cost}</span></div>`;
 }
@@ -416,11 +388,10 @@ function checkerAnalysis() {
   const best = bestCandidate(d);
   const played = d.candidates[d.played_index];
   let lines = "";
-  if (!r.revealed) lines += answerLine("yours", t("You"), r.answer, r.error <= 0.0005 ? t("best") : `−${r.error.toFixed(3)}`);
-  lines += answerLine("best", t("Best"), best.move, "");
-  lines += answerLine("played", t("In the game"), played.move, d.error > 0.0005 ? `−${d.error.toFixed(3)}` : t("best"));
-  const toggles = [["yours", t("You")], ["best", t("Best")], ["played", t("In the game")]].filter(([k]) => k !== "yours" || !r.revealed)
-    .map(([k, label]) => `<button type="button" class="move-pill" data-arrow="${k}" aria-pressed="${state.arrows.has(k) && state.candidate === null}" style="--pill-color:${Board.COLORS[k]};min-height:32px"><span class="dot"></span>${label}</button>`).join("");
+  const kinds = arrowKinds();
+  if (!r.revealed) lines += answerLine(kinds.yours, t("You"), r.answer, r.error <= 0.0005 ? t("best") : `−${r.error.toFixed(3)}`);
+  lines += answerLine(kinds.best, t("Best"), best.move, "");
+  lines += answerLine(kinds.played, t("In the game"), played.move, d.error > 0.0005 ? `−${d.error.toFixed(3)}` : t("best"));
   const rows = d.candidates.map((c, i) => {
     const tags = [];
     if (c === best) tags.push(`<span class="tag best">${t("best")}</span>`);
@@ -429,7 +400,6 @@ function checkerAnalysis() {
     return `<tr data-cand="${i}" class="${state.candidate === i ? "selected" : ""}"><td class="rank">${i + 1}</td><td class="mv">${esc(c.move)}${tags.join("")}</td><td class="num diff">${c === best ? formatEquity(c.equity) : (c.equity - best.equity).toFixed(3)}</td></tr>`;
   }).join("");
   return `<h2>${t("Analysis")}</h2><div class="answer-lines">${lines}</div>
-    <div class="move-pills" style="grid-template-columns:repeat(${r.revealed ? 2 : 3},1fr);margin:0 0 14px">${toggles}</div>
     <table class="cands"><thead><tr><th></th><th>${t("Candidates (click to draw)")}</th><th class="num">${t("Equity")}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
@@ -441,30 +411,37 @@ function cubeAnalysis() {
   const rows = [["No double", c.nd], ["Double, take", c.dt], ["Double, pass", c.dp]].map(([label, eq]) =>
     `<div class="cube-row ${eq === optimal ? "best" : ""}"><span>${t(label)}${eq === optimal ? `<span class="tag best">${t("best")}</span>` : ""}</span><span class="eq">${formatEquity(eq)}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("");
   const win = c.probs ? `<p class="small muted muted-note">${t("{name} wins {win}% (gammons {gammon}%).", { name: esc(playerName(d, d.on_roll)), win: (c.probs[0] * 100).toFixed(1), gammon: (c.probs[1] * 100).toFixed(1) })}</p>` : "";
+  const kinds = arrowKinds();
   return `<h2>${t("Analysis")}</h2><div class="answer-lines">
-      ${r.revealed ? "" : answerLine("yours", t("You"), t(r.answer), r.error <= 0.0005 ? t("best") : `−${r.error.toFixed(3)}`)}
-      ${answerLine("best", t("Right action"), t(d.best), "")}
-      ${answerLine("played", t("In the game"), t(d.action), d.error > 0.0005 ? `−${d.error.toFixed(3)}` : t("best"))}
+      ${r.revealed ? "" : answerLine(kinds.yours, t("You"), t(r.answer), r.error <= 0.0005 ? t("best") : `−${r.error.toFixed(3)}`)}
+      ${answerLine(kinds.best, t("Right action"), t(d.best), "")}
+      ${answerLine(kinds.played, t("In the game"), t(d.action), d.error > 0.0005 ? `−${d.error.toFixed(3)}` : t("best"))}
     </div><div class="small muted note-tight">${t("Equity for {name}, the doubler", { name: esc(playerName(d, d.on_roll)) })}</div><div class="cube-rows">${rows}</div>${win}`;
 }
 
 function drawResultBoard() {
   const d = state.d;
+  const nav = { prev: state.index > 0, next: true };
   if (d.kind !== "checker") {
-    Board.renderWithLabels($("board"), d, { bottom: d.player, cubeOffered: d.kind === "take" });
+    Board.renderWithLabels($("board"), d, { bottom: d.player, cubeOffered: d.kind === "take", nav });
     return;
   }
   const r = state.result;
   const best = bestCandidate(d);
   const arrows = [];
-  if (state.candidate !== null) arrows.push({ kind: "candidate", steps: d.candidates[state.candidate].steps });
-  else {
-    if (state.arrows.has("played")) arrows.push({ kind: "played", steps: d.candidates[d.played_index].steps });
-    if (state.arrows.has("best")) arrows.push({ kind: "best", steps: best.steps });
+  const kinds = arrowKinds();
+  const shown = state.hover ?? state.candidate;
+  if (shown !== null) {
+    const picked = d.candidates[shown];
+    arrows.push({ kind: errorClass(best.equity - picked.equity, state.thresholds) || "good", steps: picked.steps });
+  } else {
+    const played = d.candidates[d.played_index];
+    if (played !== best) arrows.push({ kind: kinds.played, steps: played.steps });
+    arrows.push({ kind: kinds.best, steps: best.steps });
     const yoursIsBest = !r.revealed && sameSteps(r.yourSteps, best.steps);
-    if (state.arrows.has("yours") && !r.revealed && !(yoursIsBest && state.arrows.has("best"))) arrows.push({ kind: "yours", steps: r.yourSteps });
+    if (!r.revealed && !yoursIsBest && !sameSteps(r.yourSteps, played.steps)) arrows.push({ kind: kinds.yours, steps: r.yourSteps });
   }
-  Board.renderWithLabels($("board"), d, { frame: state.start, arrows, arrowStart: state.start });
+  Board.renderWithLabels($("board"), d, { frame: state.start, arrows, arrowStart: state.start, nav });
 }
 
 function renderResult() {
@@ -486,18 +463,19 @@ function renderResult() {
   if ($("retry")) $("retry").addEventListener("click", retry);
   $("next").addEventListener("click", next);
   $("panel").innerHTML = d.kind === "checker" ? checkerAnalysis() : cubeAnalysis();
-  $("panel").querySelectorAll("[data-arrow]").forEach((el) => el.addEventListener("click", () => {
-    const k = el.dataset.arrow;
-    if (state.candidate !== null) state.candidate = null;
-    else state.arrows.has(k) ? state.arrows.delete(k) : state.arrows.add(k);
-    Prefs.set("practice.arrows", [...state.arrows]);
-    renderResult();
-  }));
+  showSide(true);
   $("panel").querySelectorAll("[data-cand]").forEach((el) => el.addEventListener("click", () => {
     const i = Number(el.dataset.cand);
     state.candidate = state.candidate === i ? null : i;
     renderResult();
   }));
+  const preview = (i) => {
+    if (state.hover === i) return;
+    state.hover = i;
+    drawResultBoard();
+  };
+  $("panel").querySelectorAll("[data-cand]").forEach((el) => el.addEventListener("mouseenter", () => preview(Number(el.dataset.cand))));
+  $("panel").querySelector(".cands tbody")?.addEventListener("mouseleave", () => preview(null));
 }
 
 function retry() {
@@ -590,10 +568,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
   ["s-player", "s-severity", "s-kind", "s-mode", "s-match", "s-shuffle"].forEach((id) => $(id).addEventListener("change", startSession));
-  $("prev-pos").innerHTML = icon("back");
-  $("next-pos").innerHTML = icon("forward");
-  $("prev-pos").addEventListener("click", () => go(-1));
-  $("next-pos").addEventListener("click", () => go(1));
+  $("board").addEventListener("click", (ev) => {
+    const area = ev.target.closest("[data-step]");
+    if (area) go(Number(area.dataset.step));
+  });
   document.addEventListener("tagschange", () => {
     syncSetControls();
     renderSummary();

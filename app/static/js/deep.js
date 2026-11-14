@@ -27,8 +27,9 @@ const Deep = {
   rolloutChoice() {
     const saved = Prefs.get("deep.rollout", null) || {};
     const preset = saved.preset && (saved.preset === "custom" || this.PRESETS.includes(saved.preset)) ? saved.preset : "standard";
-    const settings = preset === "custom" && saved.custom ? saved.custom : this.options.presets[preset];
-    return { preset, settings: structuredClone(settings) };
+    const settings = structuredClone(preset === "custom" && saved.custom ? saved.custom : this.options.presets[preset]);
+    settings.trials = Prefs.get("deep.trials", settings.trials);
+    return { preset, settings };
   },
 
   evalChoice() {
@@ -63,20 +64,36 @@ const Deep = {
     }
   },
 
+  rolloutFields(rollout) {
+    const custom = (Prefs.get("deep.rollout", null) || {}).custom;
+    const presets = [...this.PRESETS, ...(custom ? ["custom"] : [])];
+    const strength = (name) => name === "custom" ? this.presetLabel(name) : `${this.presetLabel(name)} · ${t("{n}-ply", { n: this.options.presets[name].checker.plies })}`;
+    const games = [...new Set([...this.TRIALS, rollout.settings.trials])].sort((a, b) => a - b);
+    return `<span class="deep-rollout">
+        <select data-games aria-label="${t("Games")}" title="${t("Games")}">${games.map((n) => `<option value="${n}" ${n === rollout.settings.trials ? "selected" : ""}>${plural(n, "game")}</option>`).join("")}</select>
+        <select data-preset aria-label="${t("Playing strength")}" title="${esc(this.presetNote(rollout.preset))}">${presets.map((name) => `<option value="${name}" ${name === rollout.preset ? "selected" : ""}>${esc(strength(name))}</option>`).join("")}</select>
+        <button type="button" class="btn sm" data-start>${icon("play")}${t("Start rollout")}</button>
+      </span>`;
+  },
+
   render(el, d, onResult) {
     if (d.deep_job) {
       this.showProgress(el, d.deep_job, d, onResult);
       return;
     }
     const rollout = this.rolloutChoice();
-    const current = d.deep ? `<div class="deep-current"><span>${icon("check")}${esc(this.describe(d.deep))}${d.deep.seconds ? ` · ${t("{n} s", { n: Math.round(d.deep.seconds) })}` : ""}</span>
-      <button type="button" class="link-btn" data-original>${t("Back to the original analysis")}</button></div>` : "";
-    el.innerHTML = `${current}<div class="deep-actions">
+    const open = this.rolloutOpen === d.id;
+    const done = d.deep ? `${this.describe(d.deep)}${d.deep.seconds ? ` · ${t("{n} s", { n: Math.round(d.deep.seconds) })}` : ""}` : "";
+    const current = d.deep ? `<span class="deep-current"><span class="deep-what" title="${esc(done)}">${icon("check")}${esc(done)}</span>
+      <button type="button" class="btn sm ghost icon-only" data-original title="${t("Back to the original analysis")}" aria-label="${t("Back to the original analysis")}">${icon("undo")}</button></span>` : "";
+    el.innerHTML = `<div class="deep-actions${open ? " open" : ""}${d.deep ? " has-result" : ""}">
         <span class="deep-label">${t("Analyse deeper")}</span>
         <button type="button" class="btn sm secondary" data-eval="3" title="${t("Evaluate the best moves 3 plies deep")}">3-ply</button>
         <button type="button" class="btn sm secondary" data-eval="4" title="${t("Evaluate the best moves 4 plies deep")}">4-ply</button>
-        <button type="button" class="btn sm" data-rollout title="${esc(this.presetNote(rollout.preset))}">${icon("play")}${t("Rollout")} · ${esc(this.presetLabel(rollout.preset))}</button>
+        <button type="button" class="btn sm ${open ? "secondary" : ""}" data-rollout aria-expanded="${open}">${icon("play")}${t("Rollout")}</button>
+        ${open ? this.rolloutFields(rollout) : ""}
         <button type="button" class="btn sm ghost icon-only" data-options title="${t("Analysis options")}" aria-label="${t("Analysis options")}">${icon("settings")}</button>
+        ${current}
       </div>`;
     const start = async (mode, settings, moves) => {
       try {
@@ -92,7 +109,22 @@ const Deep = {
       settings.cube.plies = Number(b.dataset.eval);
       start("eval", settings);
     }));
-    el.querySelector("[data-rollout]").addEventListener("click", () => start("rollout", rollout.settings, this.defaultMoves(d)));
+    el.querySelector("[data-rollout]").addEventListener("click", () => {
+      this.rolloutOpen = open ? null : d.id;
+      this.render(el, d, onResult);
+      if (!open) el.querySelector("[data-start]")?.focus();
+    });
+    el.querySelector("[data-games]")?.addEventListener("change", (ev) => {
+      Prefs.set("deep.trials", Number(ev.target.value));
+    });
+    el.querySelector("[data-preset]")?.addEventListener("change", (ev) => {
+      Prefs.set("deep.rollout", { ...(Prefs.get("deep.rollout", null) || {}), preset: ev.target.value });
+      ev.target.title = this.presetNote(ev.target.value);
+    });
+    el.querySelector("[data-start]")?.addEventListener("click", () => {
+      this.rolloutOpen = null;
+      start("rollout", this.rolloutChoice().settings, this.defaultMoves(d));
+    });
     el.querySelector("[data-options]").addEventListener("click", () => this.openOptions(d, start));
     el.querySelector("[data-original]")?.addEventListener("click", async () => {
       try {
@@ -343,6 +375,7 @@ const Deep = {
       }
       const settings = this.read(body, this.options.rollout);
       Prefs.set("deep.rollout", { preset, custom: preset === "custom" ? settings : (Prefs.get("deep.rollout", null) || {}).custom });
+      if (preset === "custom") Prefs.set("deep.trials", settings.trials);
       const picked = [...body.querySelectorAll('input[name="move"]:checked')].map((input) => d.candidates[Number(input.value)].steps);
       if (d.kind === "checker" && !picked.length) {
         toast(t("Choose at least one move to roll out."), true);

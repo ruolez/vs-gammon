@@ -54,14 +54,14 @@ function renderFeatured(d) {
   const checker = m.kind === "checker";
   const played = checker ? m.candidates[m.played_index] : null;
   const best = checker ? m.candidates.reduce((b, c) => (c.equity > b.equity ? c : b), m.candidates[0]) : null;
-  const arrows = checker ? [{ kind: "played", steps: played.steps }, { kind: "best", steps: best.steps }] : null;
+  const arrows = checker ? [{ kind: m.class || "good", steps: played.steps }, { kind: "good", steps: best.steps }] : null;
   const line = (kind, label, text, cost) => `<div class="answer-line"><span class="line" style="background:${Board.COLORS[kind]}"></span><span class="lbl">${label}</span><span class="mv">${esc(text)}</span><span class="cost">${cost}</span></div>`;
   $("chart").innerHTML = `<div class="featured">
     <div id="featured-board"></div>
     <div>
       <div class="what">${checker ? diceSvg(m.dice) : icon("cube")}<span>${t(checker ? "{name} to play" : m.kind === "take" ? "{name}: take or pass?" : "{name}: double or not?", { name: esc(playerName(m, m.player)) })}</span></div>
       <p class="small muted note-tight">${t("vs {name}", { name: esc(m.opponent) })} · ${esc(shortDate(m.event_date))} · ${t("game {game}, move {move}", { game: m.game_no, move: m.move_no })}</p>
-      <div class="lines">${line("played", t("You played"), t(m.action), `−${m.error.toFixed(3)}`)}${line("best", t("Best"), t(m.best), "")}</div>
+      <div class="lines">${line(m.class || "good", t("You played"), t(m.action), `−${m.error.toFixed(3)}`)}${line("good", t("Best"), t(m.best), "")}</div>
       <div class="row-gap"><a class="btn" href="/practice?player_name=${encodeURIComponent(d.player)}">${t("Practise it")}</a><a class="btn secondary" href="/moves?match=${m.match_id}&focus=${m.id}&min_error=all">${t("Open in Moves")}</a></div>
     </div></div>`;
   Board.renderWithLabels($("featured-board"), m, checker ? { arrows, noNumbers: true } : { bottom: m.player, cubeOffered: m.kind === "take", noNumbers: true });

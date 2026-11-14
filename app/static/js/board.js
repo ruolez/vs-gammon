@@ -11,13 +11,14 @@ const Board = (() => {
   const BOTTOM = H - FRAME - LABEL;
   const POINT_H = (BOTTOM - TOP) * 0.41;
   const MAX_STACK = 5;
-  const ARROW_SHAFT = 1.3;
-  const ARROW_WING = 4.6;
-  const ARROW_HEAD = 10;
+  const ARROW_SHAFT = 0.9;
+  const ARROW_WING = 3.9;
+  const ARROW_HEAD = 8.5;
   const BAR_X = FRAME + 6 * POINT_W;
   const TRAY_X = W - FRAME - TRAY;
   const COLORS = {
     played: "var(--arrow-game)", best: "var(--arrow-best)", yours: "var(--arrow-yours)", candidate: "var(--arrow-candidate)",
+    good: "var(--arrow-good)", doubtful: "var(--arrow-doubtful)", bad: "var(--arrow-bad)", very_bad: "var(--arrow-very-bad)",
   };
 
   function flip(frame) {
@@ -89,13 +90,15 @@ const Board = (() => {
       5: [[0.26, 0.26], [0.74, 0.26], [0.5, 0.5], [0.26, 0.74], [0.74, 0.74]],
       6: [[0.28, 0.24], [0.72, 0.24], [0.28, 0.5], [0.72, 0.5], [0.28, 0.76], [0.72, 0.76]],
     }[value] || [];
-    let svg = `<g opacity="${used ? 0.28 : 1}"><rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${size * 0.18}" style="fill:var(--die);stroke:var(--die-edge)"/>`;
+    let svg = `<g opacity="${1 - 0.72 * Number(used)}"><rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${size * 0.18}" style="fill:var(--die);stroke:var(--die-edge)"/>`;
     spots.forEach(([sx, sy]) => (svg += `<circle cx="${x + sx * size}" cy="${y + sy * size}" r="${pip}" style="fill:var(--die-pip)"/>`));
     return svg + "</g>";
   }
 
-  function diceOnBoard(dice) {
-    const size = dice.length > 2 ? 30 : 38;
+  function diceOnBoard(rolled) {
+    const usedSteps = rolled.filter((d) => d.used).length;
+    const dice = rolled.length === 4 ? [0, 1].map((i) => ({ value: rolled[0].value, used: Math.min(2, Math.max(0, usedSteps - 2 * i)) / 2 })) : rolled;
+    const size = 38;
     const gap = 8;
     const total = dice.length * size + (dice.length - 1) * gap;
     let x = BAR_X + BAR + 3 * POINT_W - total / 2;
@@ -168,7 +171,7 @@ const Board = (() => {
     const neck = { x: b.x - ux * head, y: b.y - uy * head };
     const at = (p, side) => `${(p.x + nx * side).toFixed(1)},${(p.y + ny * side).toFixed(1)}`;
     const points = [at(a, ARROW_SHAFT), at(neck, ARROW_SHAFT), at(neck, ARROW_WING), at(b, 0), at(neck, -ARROW_WING), at(neck, -ARROW_SHAFT), at(a, -ARROW_SHAFT)];
-    return `<polygon points="${points.join(" ")}" style="fill:${COLORS[kind]};stroke:var(--arrow-edge)" stroke-width="0.9" stroke-linejoin="round"/>`;
+    return `<polygon points="${points.join(" ")}" style="fill:${COLORS[kind]};stroke:var(--arrow-edge)" stroke-width="0.7" stroke-linejoin="round"/>`;
   }
 
   function targetSvg(point) {
@@ -195,6 +198,18 @@ const Board = (() => {
     svg += `<rect class="hit" data-point="25" ${attrs(25, t("Bar"))} x="${BAR_X}" y="${TOP}" width="${BAR}" height="${BOTTOM - TOP}" fill="transparent"/>`;
     svg += `<rect class="hit" data-point="0" ${attrs(0, t("Bear off"))} x="${TRAY_X}" y="${TOP}" width="${TRAY}" height="${BOTTOM - TOP}" fill="transparent"/>`;
     return svg;
+  }
+
+  function pipCounts({ top, bottom }) {
+    const x = BAR_X + BAR / 2;
+    const text = (y, count) => `<text class="pip-count" x="${x}" y="${y}" text-anchor="middle" font-size="14" font-weight="700" font-family="Inter, sans-serif" style="fill:var(--board-pip)"><title>${plural(count, "pip")}</title>${count}</text>`;
+    return text(TOP + 54, top) + text(BOTTOM - 42, bottom);
+  }
+
+  function navAreas({ prev, next }) {
+    const half = 6 * POINT_W;
+    const area = (x, step, label) => `<rect class="nav-hit" data-step="${step}" x="${x}" y="${TOP}" width="${half}" height="${BOTTOM - TOP}" rx="3"><title>${label}</title></rect>`;
+    return (prev ? area(FRAME, -1, t("Previous position (←)")) : "") + (next ? area(BAR_X + BAR, 1, t("Next position (→)")) : "");
   }
 
   function render(d, opts = {}) {
@@ -257,26 +272,25 @@ const Board = (() => {
       const start = opts.arrowStart || onrollFrame(d);
       opts.arrows.forEach((a) => (svg += arrowSvg(start, a.steps, a.kind)));
     }
+    if (!mini) svg += pipCounts(pips(frame));
     if (interactive) svg += hitAreas(interactive);
+    if (opts.nav) svg += navAreas(opts.nav);
     return svg + "</svg>";
   }
 
-  function sideLabel(d, player, pipCount, note) {
+  function sideLabel(d, player, note) {
     const score = player === 1 ? d.score1 : d.score2;
     const scoreText = d.match_length ? ` · ${t("{score} of {length}", { score, length: d.match_length })}` : "";
-    return `<div class="board-label"><span class="who"><span class="swatch p${player}"></span><strong>${esc(playerName(d, player))}</strong><span>${scoreText}</span></span><span class="pips">${note ? `${note} · ` : ""}${plural(pipCount, "pip")}</span></div>`;
+    return `<div class="board-label"><span class="who"><span class="swatch p${player}"></span><strong>${esc(playerName(d, player))}</strong><span>${scoreText}</span></span><span class="pips">${note}</span></div>`;
   }
 
   function renderWithLabels(container, d, opts = {}) {
     const bottom = opts.bottom || d.on_roll;
     const top = bottom === 1 ? 2 : 1;
-    let frame = opts.frame || onrollFrame(d);
-    if (bottom !== d.on_roll) frame = flip(frame);
-    const p = pips(frame);
     container.innerHTML =
-      sideLabel(d, top, p.top, d.crawford_game ? t("Crawford game") : "") +
+      sideLabel(d, top, d.crawford_game ? t("Crawford game") : "") +
       render(d, opts) +
-      sideLabel(d, bottom, p.bottom, bottom === d.on_roll ? t("on roll") : "");
+      sideLabel(d, bottom, bottom === d.on_roll ? t("on roll") : "");
   }
 
   return { render, renderWithLabels, pips, onrollFrame, flip, COLORS };
