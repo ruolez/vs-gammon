@@ -136,7 +136,7 @@ async function loadDecisions() {
     state.focus = null;
     const keep = rowOf(wanted) || decisions[0];
     showDetail(keep ? keep.id : null, keep && keep.copies.some((c) => c.id === wanted) ? wanted : null);
-    if (keep) document.querySelector(`.drow[data-id="${keep.id}"]`)?.scrollIntoView({ block: "center" });
+    if (keep) scrollListTo(keep.id, true);
   } catch (err) {
     toast(err.message, true);
   }
@@ -240,6 +240,8 @@ function renderBoardPanel(d) {
       <button class="move-pill" data-arrow="best" aria-pressed="${state.arrows.has("best") && state.candidate === null}" style="--pill-color:var(--arrow-best)"><span class="dot"></span>${esc(best.move)} <span class="cost">${t("best")}</span></button>
     </div>`;
   })() : "";
+  const extras = $("bp-extras");
+  const keepScroll = extras && extras.dataset.shown === String(d.id) ? extras.scrollTop : 0;
   $("board-panel").innerHTML = `
     <div class="position-title"><h2>${title}</h2>${d.kind === "checker" ? diceSvg(d.dice) : ""}${severityChip(d.class)}</div>
     <p class="small muted note-tight">${esc(d.player1)} ${t("vs")} ${esc(d.player2)} · ${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })} · ${d.match_length ? t("{a}–{b} to {n}", { a: d.score1, b: d.score2, n: d.match_length }) : t("money")} · ${cubeText(d)}</p>
@@ -248,11 +250,14 @@ function renderBoardPanel(d) {
       <div id="board"></div>
       <button type="button" class="nav-arrow" id="next-dec" aria-label="${t("Next position")}" title="${t("Next position (→)")}">${icon("forward")}</button>
     </div>
-    ${pills}
-    <div class="deep-bar" id="deep-bar"></div>
-    <div class="tag-line" id="tag-line"></div>
-    ${copiesList(d)}
-    <div class="xgid"><code title="XGID">${esc(d.xgid)}</code><button class="btn sm ghost" id="copy-xgid">${icon("copy")}${t("Copy XGID")}</button></div>`;
+    <div class="bp-extras" id="bp-extras" data-shown="${d.id}">
+      ${pills}
+      <div class="deep-bar" id="deep-bar"></div>
+      <div class="tag-line" id="tag-line"></div>
+      ${copiesList(d)}
+      <div class="xgid"><code title="XGID">${esc(d.xgid)}</code><button class="btn sm ghost" id="copy-xgid">${icon("copy")}${t("Copy XGID")}</button></div>
+    </div>`;
+  $("bp-extras").scrollTop = keepScroll;
   drawBoard(d);
   renderTagLine(d);
   Deep.mount($("deep-bar"), d, deeperResult);
@@ -373,7 +378,10 @@ function renderAnalysis(d) {
     }</div><p class="small muted-note">${t("Right action")}: <strong>${esc(t(d.best))}</strong></p></section>`;
     body += probsBlock(c.probs, playerName(d, d.on_roll));
   }
+  const samePosition = $("analysis").dataset.shown === String(d.id);
   $("analysis").innerHTML = body;
+  $("analysis").dataset.shown = d.id;
+  if (!samePosition) $("analysis").scrollTop = 0;
   $("analysis").querySelectorAll("[data-cand]").forEach((el) => el.addEventListener("click", () => {
     const i = Number(el.dataset.cand);
     state.candidate = state.candidate === i ? null : i;
@@ -539,7 +547,19 @@ function step(delta) {
   const index = state.decisions.findIndex((d) => d.id === state.current);
   const next = state.decisions[Math.min(state.decisions.length - 1, Math.max(0, index + delta))];
   showDetail(next.id);
-  document.querySelector(`.drow[data-id="${next.id}"]`)?.scrollIntoView({ block: "nearest" });
+  scrollListTo(next.id);
+}
+
+function scrollListTo(id, center = false) {
+  const row = document.querySelector(`.drow[data-id="${id}"]`);
+  if (!row) return;
+  const list = $("rows");
+  const r = row.getBoundingClientRect();
+  const box = list.getBoundingClientRect();
+  const top = r.top - box.top + list.scrollTop;
+  if (center) list.scrollTop = top - (list.clientHeight - r.height) / 2;
+  else if (r.top < box.top) list.scrollTop = top;
+  else if (r.bottom > box.bottom) list.scrollTop = top + r.height - list.clientHeight;
 }
 
 document.addEventListener("DOMContentLoaded", async () => {

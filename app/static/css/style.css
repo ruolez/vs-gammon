@@ -922,3 +922,80 @@ dialog.deep-options { width: min(720px, calc(100vw - 32px)); }
 .do-moves .mv { font-weight: 600; font-variant-numeric: tabular-nums; }
 @container main (max-width: 44rem) { .do-field { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
 @media (max-width: 560px) { .do-field { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+
+/* ---------- board pages fill the window: the page stays put, lists and panels scroll inside ---------- */
+.board-label .who span { white-space: nowrap; }
+@media (min-width: 641px) and (min-height: 540px) {
+  html:has(body.fit), body.fit { overflow: hidden; overscroll-behavior: none; }
+  .fit .app { height: 100vh; height: 100dvh; min-height: 0; }
+  .fit .sidebar { height: 100%; }
+  .fit .main { display: flex; flex-direction: column; height: 100%; overflow-y: auto; padding-bottom: 20px; }
+  .fit .main > * { flex: none; }
+  .fit .page-head { margin-bottom: 18px; }
+  .fit .review, .fit .practice-shell { flex: 1 1 0; min-height: 22rem; container: fit / size; grid-template-rows: minmax(0, 1fr); }
+  .fit .list-body, .fit .bp-extras, .fit .review .analysis, .fit .stage, .fit .side { overscroll-behavior: contain; }
+
+  .fit .review { align-items: stretch; }
+  .fit .review .list { position: static; height: auto; max-height: none; min-height: 0; }
+  .fit .review .board-panel { display: flex; flex-direction: column; min-height: 0; padding-bottom: 0; overflow: hidden; }
+  .fit .review .board-panel > .empty { flex: 1; }
+  .fit .review .board-nav { width: 100%; max-width: calc(max(12rem, (100cqh - 9.75rem - 5.25rem) * 1.2727) + 92px); }
+  .fit .bp-extras { flex: 1 1 0; min-height: 0; overflow-y: auto; margin: 0 -18px; padding: 0 18px 18px; }
+  .fit .review .analysis { min-height: 0; overflow-y: auto; }
+  .fit .position-title { flex-wrap: nowrap; min-height: 1.75rem; }
+  .fit .position-title h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fit .position-title > :not(h2) { flex: none; }
+  .fit .board-panel > .note-tight { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .fit .stage { max-height: 100%; overflow: hidden auto; }
+  .fit .side { max-height: 100%; overflow-y: auto; margin: -2px; padding: 2px; }
+  .fit .stage-board { max-width: max(12rem, (100cqh - 11.25rem - 4.9rem) * 1.2727); }
+  .fit .prompt { flex-wrap: nowrap; min-height: 1.875rem; white-space: nowrap; }
+  .fit .prompt > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .fit .prompt > :not(span) { flex: none; }
+  .fit .stage .position-meta { flex-wrap: nowrap; overflow: hidden; }
+  .fit .stage .position-meta > .chip { display: block; flex: 0 1 auto; min-width: 3rem; line-height: 24px; overflow: hidden; text-overflow: ellipsis; }
+  .fit .stage .position-meta > .chip:first-child { flex-shrink: 4; }
+  .fit .stage .position-meta .tag-line { flex: none; flex-wrap: nowrap; }
+  .fit .stage .position-meta .tag-chips { flex-wrap: nowrap; max-width: 14rem; overflow: hidden; }
+  .fit .answer-bar { flex-wrap: nowrap; }
+  .fit .answer-bar > * { flex: none; }
+  .fit .answer-bar > .spacer { flex: 1 1 0; }
+  .fit .answer-bar > .hint, .fit .answer-bar > .feedback { flex: 0 1 auto; min-width: 0; }
+  .fit .answer-bar > .hint, .fit .feedback h3, .fit .feedback p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fit .feedback > div { min-width: 0; }
+  @container fit (max-width: 54rem) {
+    .fit .answer-bar .kbd, .fit .answer-bar > .hint { display: none; }
+  }
+  @container fit (max-width: 50rem) {
+    .fit .answer-bar #reset { display: none; }
+    .fit .answer-bar #retry { width: 36px; padding: 0; gap: 0; font-size: 0; }
+  }
+
+  @container main (min-width: 44rem) and (max-width: 66rem) {
+    .fit .practice-shell { grid-template-columns: minmax(0, 1fr) 17rem; }
+  }
+  @container main (min-width: 44rem) and (max-width: 50rem) {
+    .fit .practice-shell { grid-template-columns: minmax(0, 1fr) 15rem; }
+  }
+  @container main (max-width: 66rem) {
+    .fit .review { grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr); }
+    .fit .review .list { grid-column: 1; grid-row: 1; }
+    .fit .review .board-panel { grid-column: 2; grid-row: 1 / span 2; }
+    .fit .review .analysis-col { grid-column: 1; grid-row: 2; }
+  }
+  @container main (max-width: 44rem) {
+    .fit .practice-shell { flex: none; min-height: 0; container-type: normal; grid-template-rows: none; }
+    .fit .stage { max-height: none; overflow: hidden; }
+    .fit .side { max-height: none; overflow: visible; margin: 0; padding: 0; }
+    .fit .stage-board { max-width: max(380px, calc((100vh - 410px) * 1.27)); }
+  }
+  @container main (max-width: 44rem) {
+    .fit .review { flex: none; min-height: 0; container-type: normal; grid-template-rows: none; }
+    .fit .review .list { grid-row: auto; height: 420px; }
+    .fit .review .board-panel { grid-row: auto; display: block; padding-bottom: 18px; overflow: visible; }
+    .fit .review .analysis-col { grid-row: auto; overflow: visible; }
+    .fit .review .board-nav { max-width: calc(max(360px, calc((100vh - 270px) * 1.27)) + 92px); }
+    .fit .bp-extras { overflow: visible; margin: 0; padding: 0; }
+  }
+}

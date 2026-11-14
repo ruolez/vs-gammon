@@ -187,7 +187,7 @@ function renderContext() {
     : d.kind === "cube" ? `<span>${t("{name}: double or no double?", { name: who })}</span>`
       : `<span>${t("{doubler} doubles to {n}. {name}: take or pass?", { doubler: esc(playerName(d, d.on_roll)), n: d.cube_value * 2, name: who })}</span>`;
   $("facts").innerHTML = [
-    `<span class="chip"><strong>${esc(d.player1)}</strong>${t("vs")}<strong>${esc(d.player2)}</strong>${esc(shortDate(d.event_date))}</span>`,
+    `<span class="chip"><strong>${esc(d.player1)}</strong> ${t("vs")} <strong>${esc(d.player2)}</strong> ${esc(shortDate(d.event_date))}</span>`,
     `<span class="chip">${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })}</span>`,
     `<span class="chip">${scoreText(d)}</span>`,
     `<span class="chip">${cubeText(d)}</span>`,
@@ -478,9 +478,11 @@ function renderResult() {
   const bar = $("bar");
   bar.className = `answer-bar ${tone}`;
   bar.innerHTML = `${feedbackHtml()}<span class="spacer"></span>
-    ${d.kind === "checker" && !r.correct ? `<button class="btn ghost" id="retry">${icon("reset")}${t("Try again")}</button>` : ""}
+    ${d.kind === "checker" && !r.correct ? `<button class="btn ghost" id="retry" title="${t("Try again")}">${icon("reset")}${t("Try again")}</button>` : ""}
     <a class="btn ghost" href="/moves?match=${d.match_id}&focus=${d.id}&min_error=all">${t("Open in Moves")}</a>
     <button class="btn lg ${tone === "right" ? "go" : tone === "wrong" ? "stop" : ""}" id="next">${last ? t("Finish") : t("Continue")} <span class="kbd">↵</span></button>`;
+  const said = bar.querySelector(".feedback p");
+  if (said) said.title = said.textContent;
   if ($("retry")) $("retry").addEventListener("click", retry);
   $("next").addEventListener("click", next);
   $("panel").innerHTML = d.kind === "checker" ? checkerAnalysis() : cubeAnalysis();
