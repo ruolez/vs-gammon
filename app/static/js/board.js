@@ -11,6 +11,9 @@ const Board = (() => {
   const BOTTOM = H - FRAME - LABEL;
   const POINT_H = (BOTTOM - TOP) * 0.41;
   const MAX_STACK = 5;
+  const ARROW_SHAFT = 1.3;
+  const ARROW_WING = 4.6;
+  const ARROW_HEAD = 10;
   const BAR_X = FRAME + 6 * POINT_W;
   const TRAY_X = W - FRAME - TRAY;
   const COLORS = {
@@ -151,8 +154,21 @@ const Board = (() => {
       }
       frame = next;
     });
-    return paths.map(({ start: a, end: b }) =>
-      `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" style="stroke:${COLORS[kind]}" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow-${kind})" opacity="0.95"/>`).join("");
+    return paths.map(({ start: a, end: b }) => arrowShape(a, b, kind)).join("");
+  }
+
+  function arrowShape(a, b, kind) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy);
+    if (!length) return "";
+    const [ux, uy] = [dx / length, dy / length];
+    const [nx, ny] = [-uy, ux];
+    const head = Math.min(ARROW_HEAD, length * 0.6);
+    const neck = { x: b.x - ux * head, y: b.y - uy * head };
+    const at = (p, side) => `${(p.x + nx * side).toFixed(1)},${(p.y + ny * side).toFixed(1)}`;
+    const points = [at(a, ARROW_SHAFT), at(neck, ARROW_SHAFT), at(neck, ARROW_WING), at(b, 0), at(neck, -ARROW_WING), at(neck, -ARROW_SHAFT), at(a, -ARROW_SHAFT)];
+    return `<polygon points="${points.join(" ")}" style="fill:${COLORS[kind]};stroke:var(--arrow-edge)" stroke-width="0.9" stroke-linejoin="round"/>`;
   }
 
   function targetSvg(point) {
@@ -192,9 +208,6 @@ const Board = (() => {
     const half = 6 * POINT_W;
 
     let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${t("Backgammon position")}" class="board-svg${interactive ? " interactive" : ""}">`;
-    if (opts.arrows) {
-      svg += `<defs>${Object.keys(COLORS).map((k) => `<marker id="arrow-${k}" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16" refX="12" refY="8" orient="auto"><path d="M1,1.5 L15,8 L1,14.5 z" style="fill:${COLORS[k]}"/></marker>`).join("")}</defs>`;
-    }
     svg += `<rect width="${W}" height="${H}" rx="14" style="fill:var(--board-frame)"/>`;
     svg += `<rect x="${FRAME}" y="${TOP}" width="${half}" height="${BOTTOM - TOP}" rx="3" style="fill:var(--board-felt)"/>`;
     svg += `<rect x="${BAR_X + BAR}" y="${TOP}" width="${half}" height="${BOTTOM - TOP}" rx="3" style="fill:var(--board-felt)"/>`;

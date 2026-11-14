@@ -70,6 +70,7 @@
   --arrow-best: #22c55e;
   --arrow-yours: #facc15;
   --arrow-candidate: #ffffff;
+  --arrow-edge: rgba(8, 13, 28, 0.85);
 
   --die: #f8fafc;
   --die-pip: #1e2a46;
