@@ -32,6 +32,9 @@ def failing_analyse(path, plies, threads):
     raise EngineError("gnubg could not import any games from this file")
 
 
+START_FRAME = [0, -2, 0, 0, 0, 0, 5, 0, 3, 0, 0, 0, -5, 5, 0, 0, 0, -3, 0, -5, 0, 0, 0, 0, 2, 0]
+
+
 class ApiTestCase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -588,6 +591,85 @@ class OldPageAddresses(ApiTestCase):
         responses = [self.client.get("/review?match=4&focus=9"), self.client.get("/positions")]
         self.assertEqual([(r.status_code, r.headers["Location"]) for r in responses],
                          [(302, "/moves?match=4&focus=9"), (302, "/moves")])
+
+
+class PlayOnlinePage(ApiTestCase):
+    def test_play_page_is_served_with_its_scripts(self):
+        response = self.client.get("/play")
+        html = response.get_data(as_text=True)
+        self.assertEqual((response.status_code, 'id="play-view"' in html, "/static/js/play-page.js" in html), (200, True, True))
+
+
+class LiveStats(ApiTestCase):
+    def setUp(self):
+        super().setUp()
+        from tests.test_live_session import FakeEngine
+        self.app = create_app({"DATA_DIR": self.data_dir, "EXPORT_DIR": os.path.join(self.tmp, "exports"),
+                               "START_WORKER": False, "TESTING": True, "LIVE_ENGINE": FakeEngine()})
+        self.client = self.app.test_client()
+        self.addCleanup(lambda: self.client.delete("/api/live"))
+
+    def send_board(self, frame, dice=None, times=2):
+        from tests.board_image import draw_board
+        buffer = io.BytesIO()
+        draw_board(frame, dice=dice).save(buffer, "PNG")
+        for _ in range(times):
+            reply = self.client.post("/api/live/frame", data=buffer.getvalue(), content_type="image/png")
+        return reply
+
+    def test_off_until_started(self):
+        self.assertEqual((self.client.get("/api/live").get_json(), self.send_board(START_FRAME).status_code),
+                         ({"active": False}, 409))
+
+    def test_a_move_read_from_screenshots_reaches_the_move_list(self):
+        started = self.client.post("/api/live", json={"opponent": "ai", "match_length": 5, "player1": "Me"}).get_json()
+        moved = list(START_FRAME)
+        moved[13], moved[8], moved[11] = 3, 4, 1
+        dice = {"side": "bottom", "values": [5, 2]}
+        self.send_board(START_FRAME, dice)
+        reply = self.send_board(moved, dice).get_json()
+        moves = self.client.get("/api/live").get_json()["moves"]
+        self.assertEqual((started["settings"]["player1"], started["settings"]["match_length"], reply["found"],
+                          [(m["player"], m["dice"], m["move"]) for m in moves]),
+                         ("Me", 5, True, [(1, [5, 2], "13/11 13/8")]))
+
+    def test_settings_are_validated(self):
+        self.client.post("/api/live", json={})
+        response = self.client.patch("/api/live", json={"opponent": "robot"})
+        self.assertEqual((response.status_code, response.get_json()["error"]), (400, "opponent must be 'person' or 'ai'"))
+
+    def test_a_screenshot_must_be_an_image(self):
+        self.client.post("/api/live", json={})
+        response = self.client.post("/api/live/frame", data=b"not a picture", content_type="image/png")
+        self.assertEqual(response.status_code, 400)
+
+    def test_a_page_without_a_board_is_reported(self):
+        from PIL import Image
+        self.client.post("/api/live", json={})
+        buffer = io.BytesIO()
+        Image.new("RGB", (400, 300), (255, 255, 255)).save(buffer, "PNG")
+        reply = self.client.post("/api/live/frame", data=buffer.getvalue(), content_type="image/png").get_json()
+        self.assertEqual((reply["found"], reply["why"]), (False, "no board"))
+
+    def test_saving_puts_the_match_in_the_library(self):
+        self.client.post("/api/live", json={"opponent": "ai", "match_length": 3})
+        moved = list(START_FRAME)
+        moved[13], moved[8], moved[11] = 3, 4, 1
+        self.send_board(START_FRAME, {"side": "bottom", "values": [5, 2]})
+        self.send_board(moved, {"side": "bottom", "values": [5, 2]})
+        saved = self.client.post("/api/live/save").get_json()
+        again = self.client.post("/api/live/save").get_json()
+        self.assertEqual((isinstance(saved["id"], int), saved["duplicate"], again["duplicate"]), (True, False, True))
+
+    def test_replay_of_a_stored_match(self):
+        match_id = self.upload()[0]["id"]
+        replay = self.client.get(f"/api/live/replay/{match_id}").get_json()
+        first_move = next(sc for sc in replay["screens"] if sc["dice"])
+        self.assertEqual((replay["match"]["match_length"], replay["screens"][0]["frame"], first_move["dice"]),
+                         (3, START_FRAME, {"side": "bottom", "values": [3, 1]}))
+
+    def test_replay_page_is_served(self):
+        self.assertEqual(self.client.get("/replay").status_code, 200)
 
 
 def fake_deep(path, job, on_line=None, cancelled=lambda: False):

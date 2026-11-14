@@ -37,6 +37,16 @@ if [[ ! -f "$BUILD/python/python.exe" ]]; then
   echo "$PYTHON_WIN_SHA256  $archive" | shasum -a 256 -c - >/dev/null
   tar xzf "$archive" -C "$BUILD"
 fi
+WEBVIEW2="$HERE/build/webview2"
+if [[ ! -f "$WEBVIEW2/pkg/LICENSE.txt" ]]; then
+  mkdir -p "$WEBVIEW2"
+  curl -fsSL -o "$WEBVIEW2/webview2.nupkg" "$WEBVIEW2_URL"
+  echo "$WEBVIEW2_SHA256  $WEBVIEW2/webview2.nupkg" | shasum -a 256 -c - >/dev/null
+  rm -rf "$WEBVIEW2/pkg" && unzip -q "$WEBVIEW2/webview2.nupkg" -d "$WEBVIEW2/pkg"
+fi
+# The header asks for EventToken.h; the mingw header is eventtoken.h and Linux file names are case-sensitive.
+sed 's/"EventToken.h"/<eventtoken.h>/' "$WEBVIEW2/pkg/build/native/include/WebView2.h" > "$BUILD/WebView2.h"
+
 [[ -f "$BUILD/engine/bin/gnubg.exe" && "${2:-}" != "--engine" ]] || in_docker bash /scripts/build-engine.sh > "$BUILD/engine.log" 2>&1 \
   || { tail -30 "$BUILD/engine.log"; exit 1; }
 
@@ -52,12 +62,15 @@ rm -rf "$work"
 IFS=. read -r major minor patch <<< "$VERSION"
 in_docker bash -c "cp /scripts-win/launcher.c /scripts-win/launcher.rc . && \
   $HOST-windres -DVER_MAJOR=$major -DVER_MINOR=$minor -DVER_PATCH=$patch -DVER_TEXT='\\\"$VERSION\\\"' launcher.rc -O coff -o launcher.res.o && \
-  $HOST-clang -O2 -municode -mwindows -Wall -o launcher.exe launcher.c launcher.res.o -lws2_32 -lshell32 -ladvapi32 && \
+  $HOST-clang -O2 -municode -mwindows -Wall -Wno-unknown-pragmas -I. -o launcher.exe launcher.c launcher.res.o -lws2_32 -lshell32 -ladvapi32 -lole32 -luuid -ldwmapi -lcrypt32 && \
   $HOST-strip launcher.exe"
 
 rm -rf "$OUT"
 mkdir -p "$OUT/engine/bin" "$OUT/engine/share/gnubg"
 cp "$BUILD/launcher.exe" "$OUT/VS Gammon.exe"
+mkdir -p "$OUT/licenses"
+cp "$WEBVIEW2/pkg/build/native/$ARCH/WebView2Loader.dll" "$OUT/"
+cp "$WEBVIEW2/pkg/LICENSE.txt" "$OUT/licenses/WebView2.txt"
 cp "$HERE/starting.html" "$OUT/"
 rsync -a --exclude '__pycache__' --exclude '*.pyc' \
   --exclude 'Lib/test' --exclude 'Lib/idlelib' --exclude 'Lib/tkinter' --exclude 'Lib/turtledemo' \

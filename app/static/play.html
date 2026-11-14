@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Play online · VS Gammon</title>
+  <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script>try{var t=localStorage.getItem("ga-theme")||"system",d=document.documentElement;d.dataset.theme=(t==="light"||t==="dark")?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var sb=localStorage.getItem("ga-sidebar");d.dataset.sidebar=sb==="collapsed"?"collapsed":"";var ts=parseInt(localStorage.getItem("ga-text"),10);if(ts)d.style.fontSize=ts+"%"}catch(e){}</script>
+</head>
+<body class="play-page" data-page="play">
+<div class="app">
+  <aside class="sidebar" id="sidebar" data-active="/play"></aside>
+  <main class="main">
+    <h1 class="sr-only">Play online</h1>
+    <form class="play-bar" id="play-bar" autocomplete="off">
+      <button type="button" class="btn ghost icon-only" id="play-back" title="Back" aria-label="Back" disabled></button>
+      <button type="button" class="btn ghost icon-only" id="play-forward" title="Forward" aria-label="Forward" disabled></button>
+      <button type="button" class="btn ghost icon-only" id="play-reload" title="Reload" aria-label="Reload"></button>
+      <button type="button" class="btn ghost icon-only" id="play-home" title="Go to BackgammonGalaxy" aria-label="Go to BackgammonGalaxy"></button>
+      <div class="play-address">
+        <label for="play-url" class="sr-only">Web address</label>
+        <input type="text" id="play-url" inputmode="url" spellcheck="false" autocapitalize="off" placeholder="Enter a web address, like backgammongalaxy.com" aria-describedby="play-error">
+        <span class="play-error" id="play-error" role="alert" hidden>That isn't a web address</span>
+      </div>
+      <button type="submit" class="btn" id="play-go">Open</button>
+      <button type="button" class="btn ghost live-toggle" id="live-toggle" aria-pressed="false" aria-controls="live" title="Live stats">Live stats</button>
+    </form>
+    <div class="play-body">
+    <div class="play-view" id="play-view">
+      <div class="empty" id="play-browser" hidden>
+        <strong>Play inside the VS Gammon app</strong>
+        <p>Game sites like BackgammonGalaxy don't let other pages show them, so in a web browser the game opens in its own tab.</p>
+        <button type="button" class="btn" id="play-tab">Open in a new tab</button>
+      </div>
+    </div>
+    <aside class="live" id="live" aria-label="Live stats" hidden></aside>
+    </div>
+  </main>
+</div>
+<script src="/static/js/i18n-ru.js"></script>
+<script src="/static/js/i18n.js"></script>
+<script src="/static/js/core.js"></script>
+<script src="/static/js/moves.js"></script>
+<script src="/static/js/board.js"></script>
+<script src="/static/js/play.js"></script>
+<script src="/static/js/play-page.js"></script>
+<script src="/static/js/live.js"></script>
+</body>
+</html>

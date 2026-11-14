@@ -66,6 +66,9 @@ const ICONS = {
   pencil: '<path d="M21.17 6.81a2.83 2.83 0 0 0-4-4L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/>',
   merge: '<path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.17 2.87L4 22"/><path d="m20 22-5-5"/>',
   cube: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 9h.01"/><path d="M15 15h.01"/>',
+  globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18"/>',
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/>',
+  external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
   list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>',
 };
 
@@ -243,6 +246,7 @@ const NAV = [
   ["/practice", "practice", t("Practice")],
   ["/moves", "review", t("Moves")],
   ["/matches", "matches", t("Matches")],
+  ["/play", "globe", t("Play online")],
   ["/history", "history", t("History")],
   ["/settings", "settings", t("Settings")],
 ];
@@ -323,6 +327,34 @@ const Shell = {
   },
 };
 
+/* ---------- the desktop window (macOS or Windows app): null in a browser ---------- */
+const Host = (() => {
+  const mac = window.webkit?.messageHandlers?.vsg;
+  if (mac) return { call: (name, args = {}) => mac.postMessage({ name, args }) };
+  const webview = window.chrome?.webview;
+  if (!webview) return null;
+  let next = 0;
+  const waiting = new Map();
+  webview.addEventListener("message", (ev) => {
+    const message = ev.data || {};
+    if (message.event) return document.dispatchEvent(new CustomEvent(message.event, { detail: message.detail }));
+    const pending = waiting.get(message.id);
+    if (!pending) return;
+    waiting.delete(message.id);
+    if (message.error) pending.reject(new Error(message.error));
+    else pending.resolve(message.result);
+  });
+  return {
+    call(name, args = {}) {
+      const id = ++next;
+      return new Promise((resolve, reject) => {
+        waiting.set(id, { resolve, reject });
+        webview.postMessage({ id, name, args });
+      });
+    },
+  };
+})();
+
 /* ---------- macOS app bridge: absent in a browser ---------- */
 const Native = {
   available: Boolean(window.webkit?.messageHandlers?.vsg),
@@ -335,7 +367,7 @@ const Native = {
       "Hide VS Gammon": t("Hide VS Gammon"), "Hide Others": t("Hide Others"), "Show All": t("Show All"), "Quit VS Gammon": t("Quit VS Gammon"),
       "File": t("File"), "Import Matches…": t("Import Matches…"), "Close Window": t("Close Window"),
       "Edit": t("Edit"), "Undo": t("Undo"), "Redo": t("Redo"), "Cut": t("Cut"), "Copy": t("Copy"), "Paste": t("Paste"), "Select All": t("Select All"),
-      "View": t("View"), "Dashboard": t("Dashboard"), "Practice": t("Practice"), "Moves": t("Moves"), "Matches": t("Matches"), "History": t("History"),
+      "View": t("View"), "Dashboard": t("Dashboard"), "Practice": t("Practice"), "Moves": t("Moves"), "Matches": t("Matches"), "Play Online": t("Play online"), "History": t("History"),
       "Back": t("Back"), "Forward": t("Forward"), "Reload": t("Reload"),
       "Larger Text": t("Larger Text"), "Smaller Text": t("Smaller Text"), "Actual Size": t("Actual Size"),
       "Theme": t("Theme"), "Light": t("Light"), "Dark": t("Dark"), "Match System": t("Match System"), "Language": t("Language"),

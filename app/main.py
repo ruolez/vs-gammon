@@ -1,9 +1,12 @@
+import atexit
 import datetime
+import io
 import logging
 import os
 import threading
 
 from flask import Flask, abort, g, jsonify, redirect, request, send_file, send_from_directory
+from PIL import Image
 
 from app import db, deep_jobs, jobs, migrate_docker, watcher
 from app.dashboard import build_dashboard
@@ -13,11 +16,16 @@ from app.engine.runner import gnubg_version
 from app.export import build_export_zip
 from app.importer import (MAX_UPLOAD_BYTES, describe, fill_missing_keys, import_match_bytes, remove_duplicates,
                           upload_path)
+from app.live.engine import LiveEngine
+from app.live.reader import read_board
+from app.live.replay import screens as replay_screens
+from app.live.session import LiveSession
+from app.live.transcript import parse_mat
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 MAX_EXPORT = 500
 PAGES = {"/": "index.html", "/matches": "matches.html", "/moves": "moves.html", "/practice": "practice.html",
-         "/history": "history.html", "/settings": "settings.html"}
+         "/history": "history.html", "/settings": "settings.html", "/play": "play.html", "/replay": "replay.html"}
 MOVED_PAGES = {"/review": "/moves", "/positions": "/moves"}
 CUBE_ANSWER_TEXT = {"double": "Double", "no_double": "No double", "take": "Take", "pass": "Pass"}
 
@@ -556,5 +564,85 @@ def create_app(config=None):
         practice_decision(decision_id)
         db.record_attempt(conn(), decision_id, "revealed", None, False, revealed=True)
         return jsonify(history=db.decision_practice_history(conn(), decision_id))
+
+    # ---- live stats on Play online: board screenshots in, a followed and analysed match out ----
+    live = {"session": None, "engine": app.config.get("LIVE_ENGINE") or LiveEngine()}
+    live_lock = threading.Lock()
+    atexit.register(live["engine"].stop)
+
+    def live_view(session):
+        return jsonify(session.view(thresholds()) if session else {"active": False})
+
+    @app.get("/api/live")
+    def live_state():
+        return live_view(live["session"])
+
+    @app.post("/api/live")
+    def live_start():
+        settings = db.get_settings(conn())
+        with live_lock:
+            if live["session"]:
+                live["session"].stop()
+            live["session"] = LiveSession(request.get_json(silent=True) or {}, live["engine"],
+                                          plies=settings["plies"], threads=settings["threads"])
+        return live_view(live["session"])
+
+    @app.patch("/api/live")
+    def live_update():
+        session = live["session"]
+        if not session:
+            return jsonify(error="live stats are off"), 409
+        session.update(request.get_json(silent=True) or {})
+        return live_view(session)
+
+    @app.delete("/api/live")
+    def live_stop():
+        with live_lock:
+            if live["session"]:
+                live["session"].stop()
+            live["session"] = None
+        return live_view(None)
+
+    @app.post("/api/live/frame")
+    def live_frame():
+        session = live["session"]
+        if not session:
+            return jsonify(error="live stats are off"), 409
+        try:
+            image = Image.open(io.BytesIO(request.get_data()))
+            image.load()
+        except (OSError, Image.DecompressionBombError) as exc:
+            raise ValueError("that is not an image") from exc
+        reading = read_board(image)
+        session.feed(reading)
+        return jsonify(found=reading["found"], why=reading.get("why"), geometry=reading.get("geometry"),
+                       version=session.version)
+
+    @app.get("/api/live/move/<int:game_no>/<int:index>")
+    def live_move(game_no, index):
+        session = live["session"]
+        found = session.move(game_no, index) if session else None
+        if not found:
+            abort(404)
+        return jsonify(found)
+
+    @app.post("/api/live/save")
+    def live_save():
+        session = live["session"]
+        if not session or not session.games:
+            raise ValueError("there is no game to save yet")
+        stamp = datetime.datetime.now().strftime("%Y-%m-%d %H.%M")
+        result = import_match_bytes(conn(), data_dir, session.transcript().encode(), f"Live {stamp}.mat")
+        wake.set()
+        return jsonify(result)
+
+    @app.get("/api/live/replay/<int:match_id>")
+    def live_replay(match_id):
+        row = match_row(match_id)
+        with open(upload_path(data_dir, row["sha256"]), encoding="utf-8", errors="replace") as f:
+            header, games = parse_mat(f.read())
+        return jsonify(match={"id": row["id"], "player1": row["player1"], "player2": row["player2"],
+                              "match_length": header["match_length"]},
+                       screens=replay_screens(games, header["match_length"]))
 
     return app

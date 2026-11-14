@@ -1056,3 +1056,101 @@ dialog.deep-options { width: min(720px, calc(100vw - 32px)); }
 .analysis-hidden > .icon { width: 26px; height: 26px; color: var(--text-4); }
 .analysis-hidden strong { color: var(--text); font-size: 0.9375rem; font-weight: 600; }
 .analysis-hidden .btn { margin-top: 4px; }
+
+/* ---------- play online: the game site fills the page under an address bar ---------- */
+html:has(body.play-page), body.play-page { overflow: hidden; overscroll-behavior: none; }
+.play-page .app { height: 100vh; height: 100dvh; min-height: 0; }
+.play-page .sidebar { height: 100%; }
+.play-page .main { display: flex; flex-direction: column; gap: 10px; height: 100%; padding: 12px 14px 14px; }
+.play-bar { display: flex; align-items: center; gap: 4px; flex: none; }
+.play-bar .btn.icon-only { flex: none; }
+.play-address { position: relative; flex: 1 1 auto; min-width: 0; margin: 0 6px; }
+.play-address input { width: 100%; }
+.play-address input[aria-invalid="true"] { border-color: var(--vbad); }
+.play-error { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 0.75rem; font-weight: 550; color: var(--vbad); background: var(--inset); padding-left: 8px; pointer-events: none; }
+.play-bar .btn[type="submit"] { flex: none; gap: 6px; }
+.play-view { position: relative; flex: 1 1 0; min-height: 0; overflow: hidden; border-radius: var(--radius-m); background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); }
+.play-address::after { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 0; border-radius: 1px; background: var(--accent); opacity: 0; pointer-events: none; }
+.play-bar.loading .play-address::after { animation: play-loading 1.4s ease-in-out infinite; }
+@keyframes play-loading { 0% { width: 0; left: 0; opacity: 1; } 60% { width: 70%; left: 15%; opacity: 1; } 100% { width: 0; left: 100%; opacity: 0; } }
+.play-view > .empty { height: 100%; }
+@media (max-width: 640px) {
+  .play-page .main { height: calc(100% - 60px); padding: 10px 10px 10px; }
+  .play-address { margin: 0 2px; }
+  .play-bar #play-home { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .play-bar.loading .play-address::after { animation: none; opacity: 1; width: 100%; } }
+
+/* ---------- live stats: a sidebar beside the game on Play online ---------- */
+.play-body { display: flex; gap: 12px; flex: 1 1 0; min-height: 0; }
+.play-body > .play-view { flex: 1 1 0; min-width: 0; }
+.live-toggle[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.live-toggle .icon { width: 16px; height: 16px; }
+.live { flex: none; width: 23.5rem; display: flex; flex-direction: column; min-height: 0; background: var(--surface); border-radius: var(--radius-m); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.live-head { display: flex; align-items: center; gap: 4px; padding: 10px 10px 8px 16px; border-bottom: 1px solid var(--line); }
+.live-head h2 { flex: 1; font-size: 0.9375rem; font-weight: 650; }
+.live-status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; font-size: 0.8125rem; color: var(--text-2); border-bottom: 1px solid var(--line); }
+.live-status .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--text-4); }
+.live-status .dot.on { background: var(--good-strong); box-shadow: 0 0 0 3px var(--good-soft); }
+.live-status .dot.wait { background: var(--doubtful); }
+.live-engine { margin-left: auto; color: var(--text-3); font-size: 0.75rem; }
+.live-notice { margin: 8px 12px 0; padding: 8px 12px; border-radius: var(--radius-s); background: var(--good-soft); color: var(--text); font-size: 0.8125rem; }
+.live-notice.error { background: var(--vbad-soft); }
+.live-scroll { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px 18px; display: flex; flex-direction: column; gap: 14px; }
+.live-intro { color: var(--text-2); font-size: 0.875rem; }
+.live-note { color: var(--text-3); font-size: 0.8125rem; }
+.live-form { display: flex; flex-direction: column; gap: 12px; }
+.live-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.live-label { font-size: 0.75rem; font-weight: 550; color: var(--text-3); }
+.live-hint { font-size: 0.6875rem; color: var(--text-4); }
+.live-field .seg { align-self: flex-start; }
+.live-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.live-grid input { width: 100%; }
+.live-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.live-row { display: flex; gap: 8px; }
+.live-row select { flex: 1; min-width: 0; }
+.live-section { display: flex; flex-direction: column; gap: 8px; }
+.live-section h3 { font-size: 0.75rem; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.live-score { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.875rem; }
+.live-score .num { font-size: 1rem; font-weight: 650; }
+.live-score .muted { flex-basis: 100%; }
+.live-held { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: var(--radius-s); background: var(--accent-soft); color: var(--text-2); font-size: 0.8125rem; }
+.live-held .icon { width: 16px; height: 16px; flex: none; margin-top: 1px; color: var(--accent); }
+.live-board .board-label { font-size: 0.75rem; margin: 3px 2px; }
+.live-board svg { display: block; width: 100%; height: auto; }
+.live-empty { padding: 28px 12px; text-align: center; color: var(--text-3); font-size: 0.8125rem; border: 1px dashed var(--line-strong); border-radius: var(--radius-s); }
+.live-move { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.875rem; }
+.live-move .btn { margin-left: auto; }
+.live-verdict { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.8125rem; }
+.live-best { color: var(--text-2); }
+.live-cands { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-radius: var(--radius-s); box-shadow: inset 0 0 0 1px var(--line); font-size: 0.8125rem; }
+.live-cands li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 10px; }
+.live-cands li + li { border-top: 1px solid var(--line); }
+.live-cands li.played { background: var(--accent-soft); font-weight: 600; }
+.live-chances { display: flex; align-items: baseline; gap: 10px; }
+.live-chances .big { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
+.live-graph { position: relative; }
+.live-graph svg { display: block; width: 100%; height: 84px; overflow: visible; }
+.live-graph .series { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.live-graph .mid { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.live-graph .cross { stroke: var(--text-4); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.live-tip { position: absolute; top: -6px; transform: translate(-50%, -100%); padding: 4px 8px; border-radius: 6px; background: var(--surface-raised); box-shadow: 0 0 0 1px var(--line-strong), var(--shadow-1); font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
+.live-stats { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.live-stats th, .live-stats td { padding: 5px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+.live-stats thead th { font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.live-stats thead th .swatch { display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: 0; }
+.live-stats tbody th { text-align: left; font-weight: 500; color: var(--text-3); }
+.live-moves { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 16rem; overflow-y: auto; border-radius: var(--radius-s); box-shadow: inset 0 0 0 1px var(--line); }
+.live-moves button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 10px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 0.8125rem; text-align: left; cursor: pointer; }
+.live-moves li + li button { border-top: 1px solid var(--line); }
+.live-moves button:hover, .live-moves button.active { background: var(--surface-hover); }
+.live-moves .swatch { width: 9px; height: 9px; }
+.live-moves .mv { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-luck { font-size: 0.6875rem; color: var(--text-4); }
+.live-luck.very_lucky, .live-luck.lucky { color: var(--good); }
+.live-luck.very_unlucky, .live-luck.unlucky { color: var(--bad); }
+@media (max-width: 980px) { .live { width: 20rem; } }
+@media (max-width: 760px) {
+  .play-body { flex-direction: column; }
+  .live { width: auto; flex: 0 0 48%; }
+}

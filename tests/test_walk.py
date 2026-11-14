@@ -229,5 +229,24 @@ class WalkDeeperAnalysis(unittest.TestCase):
                          [("checker", 0), ("cube", 1), ("take", 1)])
 
 
+class Luck(unittest.TestCase):
+    def test_each_analysed_roll_reports_its_luck_including_dances(self):
+        game = [
+            {**GAME[0], "analysis": {**GAME[0]["analysis"], "luck-value": 0.25}},
+            {**GAME[1], "analysis": {**GAME[1]["analysis"], "luck-value": -0.1}},
+            {**GAME[2], "analysis": {**GAME[2]["analysis"], "luck-value": -0.4}},
+            GAME[3],
+        ]
+        result = walk_match({**MATCH, "games": [{**MATCH["games"][0], "game": game}]}, FakeHelpers(), with_records=True)
+        self.assertEqual(result["luck"], [
+            {"game_no": 1, "move_no": 1, "player": 1, "dice": [3, 1], "luck": 0.25, "record_index": 0},
+            {"game_no": 1, "move_no": 1, "player": 2, "dice": [6, 6], "luck": -0.1, "record_index": 1},
+            {"game_no": 1, "move_no": 2, "player": 1, "dice": [4, 4], "luck": -0.4, "record_index": 2},
+        ])
+
+    def test_no_luck_list_without_luck_analysis(self):
+        self.assertNotIn("luck", walk_match(MATCH, FakeHelpers()))
+
+
 if __name__ == "__main__":
     unittest.main()

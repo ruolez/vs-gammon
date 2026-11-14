@@ -10,6 +10,8 @@ final class SelfTest {
     private var steps: [Step] = []
     private var results: [[String: Any]] = []
     private var onLoaded: (() -> Void)?
+    private let playOnly = ProcessInfo.processInfo.environment["VSG_SELFTEST_PLAY"] != nil
+    private var playStarted = false
 
     private static let probe = """
     JSON.stringify({path: location.pathname, shell: document.documentElement.dataset.shell, native: Native.available,
@@ -51,6 +53,10 @@ final class SelfTest {
 
     private func next() {
         if ProcessInfo.processInfo.environment["VSG_SELFTEST_UPDATE"] != nil { return settle { self.runUpdate() } }
+        if playOnly {
+            if !playStarted { playStarted = true; testPlay() }
+            return
+        }
         guard !steps.isEmpty else { return testMenus() }
         let step = steps.removeFirst()
         web.webView.window?.setContentSize(NSSize(width: step.width, height: 800))
@@ -137,6 +143,141 @@ final class SelfTest {
             }
             self.web.load("/practice")
         }
+    }
+
+    // MARK: Play online (VSG_SELFTEST_PLAY=1: only this, leaves theme / language / text size alone)
+
+    private func wait(_ seconds: Double, _ work: @escaping () -> Void) { DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work) }
+
+    private func recordPlay(_ name: String, then: @escaping () -> Void) {
+        let probe = "JSON.stringify({path: location.pathname, host: !!Host, box: (b => b && {x: b.left, y: b.top, width: b.width, height: b.height})(document.getElementById('play-view')?.getBoundingClientRect()), input: document.getElementById('play-url')?.value, errors: window.__errors || []})"
+        web.webView.evaluateJavaScript(probe) { value, _ in
+            var entry: [String: Any] = ["step": name, "page": value as? String ?? "", "play": self.web.play.state,
+                                        "playHidden": self.web.play.webView.isHidden, "playFrame": NSStringFromRect(self.web.play.webView.frame)]
+            entry["window"] = NSStringFromRect(self.web.webView.window?.frame ?? .zero)
+            self.web.play.webView.evaluateJavaScript("JSON.stringify({ready: document.readyState, text: (document.body?.innerText || '').slice(0, 200), ua: navigator.userAgent})") { site, error in
+            entry["site"] = site as? String ?? "error: \(String(describing: error))"
+            self.results.append(entry)
+            self.web.play.webView.takeSnapshot(with: nil) { image, _ in
+                if let image, let tiff = image.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+                    try? png.write(to: self.dir.appendingPathComponent("\(name)-site.png"))
+                }
+                self.web.webView.takeSnapshot(with: nil) { image, _ in
+                    if let image, let tiff = image.tiffRepresentation, let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+                        try? png.write(to: self.dir.appendingPathComponent("\(name)-page.png"))
+                    }
+                    then()
+                }
+            }
+            }
+        }
+    }
+
+    /// Loads an app page and waits until it is the one showing (didFinish callbacks can belong to an earlier load).
+    private func open(_ path: String, then: @escaping () -> Void) {
+        web.load(path)
+        func poll() {
+            if web.webView.url?.path == path && !web.webView.isLoading { return wait(1.5, then) }
+            wait(0.3, poll)
+        }
+        wait(0.3, poll)
+    }
+
+    private func js(_ script: String, then: @escaping (Any?) -> Void) { web.webView.evaluateJavaScript(script) { value, _ in then(value) } }
+
+    /// VSG_SELFTEST_LIVE=<.mat>: imports the match, starts live stats against it in the Replay page inside the site view,
+    /// lets the page's own capture loop read it for VSG_LIVE_SECONDS, then saves the live view and pictures.
+    private func testLive(_ matPath: String) {
+        let seconds = Double(ProcessInfo.processInfo.environment["VSG_LIVE_SECONDS"] ?? "") ?? 90
+        let text = (try? String(contentsOfFile: matPath, encoding: .utf8)) ?? ""
+        let setup = """
+        const form = new FormData(); form.append('files', new Blob([mat], {type: 'text/plain'}), 'live-test.mat');
+        const imported = await (await fetch('/api/matches', {method: 'POST', body: form})).json();
+        const id = imported.results[0].id;
+        if (!Prefs.get('live-open', false)) document.getElementById('live-toggle').click();
+        await fetch('/api/live', {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({opponent: 'ai', match_length: 3, player1: 'chessgamm0n', player2: 'fishsoup'})});
+        document.dispatchEvent(new CustomEvent('playopen', {detail: location.origin + '/replay?match=' + id + '&ms=1400'}));
+        return id;
+        """
+        open("/play") {
+            self.web.webView.callAsyncJavaScript(setup, arguments: ["mat": text], in: nil, in: .page) { result in
+                self.results.append(["step": "live setup", "value": (try? result.get()) ?? "failed: \(result)"])
+                self.wait(seconds) {
+                    self.web.webView.callAsyncJavaScript("return JSON.stringify(await (await fetch('/api/live')).json())", arguments: [:], in: nil, in: .page) { view in
+                        if let json = (try? view.get()) as? String {
+                            try? json.write(to: self.dir.appendingPathComponent("live.json"), atomically: true, encoding: .utf8)
+                        }
+                        self.recordPlay("live-end") {
+                            self.web.webView.evaluateJavaScript("Prefs.set('live-open', false); fetch('/api/live', {method: 'DELETE'})") { _, _ in self.finishPlay() }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func testPlay() {
+        if let mat = ProcessInfo.processInfo.environment["VSG_SELFTEST_LIVE"] { return testLive(mat) }
+        let window = web.webView.window!
+        let original = window.frame
+        let site = ProcessInfo.processInfo.environment["VSG_PLAY_PROBE"]
+        js("localStorage.getItem('ga-sidebar')") { sidebar in
+            let restore = "localStorage.setItem('ga-sidebar', \((sidebar as? String).map { "'\($0)'" } ?? "''"))"
+            self.js("localStorage.setItem('ga-sidebar','')") { _ in
+                self.open("/play") {
+                    if let site { self.web.play.webView.load(URLRequest(url: URL(string: site)!)) }
+                    if let frames = Int(ProcessInfo.processInfo.environment["VSG_PLAY_FRAMES"] ?? "") {
+                        return self.wait(8) { self.captureFrames(frames) { window.setFrame(original, display: true); self.js(restore) { _ in self.finishPlay() } } }
+                    }
+                    self.wait(10) {
+                        self.recordPlay("play-open") {
+                            window.setContentSize(NSSize(width: 900, height: 700))
+                            self.wait(1.5) {
+                                self.recordPlay("play-resized") {
+                                    self.js("Shell.toggleCollapse()") { _ in
+                                        self.wait(1.5) {
+                                            self.recordPlay("play-rail") {
+                                                self.js("Shell.toggleCollapse()") { _ in
+                                                    self.open("/matches") {
+                                                        self.recordPlay("play-left-for-matches") {
+                                                            self.open("/play") {
+                                                                self.recordPlay("play-back-again") {
+                                                                    window.setFrame(original, display: true)
+                                                                    self.js(restore) { _ in self.finishPlay() }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    /// VSG_PLAY_FRAMES=n: saves n snapshots of the site, 0.7 s apart, through the same call the page uses.
+    private func captureFrames(_ count: Int, index: Int = 0, then: @escaping () -> Void) {
+        if index % 10 == 0 { results.append(["step": "frame \(index)", "play": web.play.state, "frame": NSStringFromRect(web.play.webView.frame), "hidden": web.play.webView.isHidden]) }
+        guard index < count else { return then() }
+        web.play.snapshot(width: 1000) { base64 in
+            if let base64, let data = Data(base64Encoded: base64) {
+                try? data.write(to: self.dir.appendingPathComponent(String(format: "frame-%03d.png", index)))
+            }
+            self.wait(0.7) { self.captureFrames(count, index: index + 1, then: then) }
+        }
+    }
+
+    private func finishPlay() {
+        if let data = try? JSONSerialization.data(withJSONObject: results, options: [.prettyPrinted]) {
+            try? data.write(to: dir.appendingPathComponent("results.json"))
+        }
+        NSApp.terminate(nil)
     }
 
     private func finish() {

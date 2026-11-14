@@ -49,7 +49,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.minSize = NSSize(width: 480, height: 480)
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.contentView = web.webView
+        let content = ContentView()
+        web.webView.frame = content.bounds
+        web.webView.autoresizingMask = [.width, .height]
+        content.addSubview(web.webView)
+        content.addSubview(web.play.webView)
+        window.contentView = content
         web.webView.isHidden = true
         applyAppearance(background: UserDefaults.standard.string(forKey: "background"), theme: UserDefaults.standard.string(forKey: "theme"))
         window.center()
@@ -139,9 +144,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func navigate(_ sender: NSMenuItem) { if let path = sender.representedObject as? String { web.load(path) } }
     @objc func runScript(_ sender: NSMenuItem) { if let js = sender.representedObject as? String { web.webView.evaluateJavaScript(js) } }
-    @objc func goBack(_ sender: Any?) { web.webView.goBack() }
-    @objc func goForward(_ sender: Any?) { web.webView.goForward() }
-    @objc func reload(_ sender: Any?) { web.webView.reload() }
+    /// On Play online, Back / Forward / Reload act on the game site.
+    private var browsing: WKWebView { web.play.isShowing ? web.play.webView : web.webView }
+    @objc func goBack(_ sender: Any?) { browsing.goBack() }
+    @objc func goForward(_ sender: Any?) { browsing.goForward() }
+    @objc func reload(_ sender: Any?) { browsing.reload() }
     @objc func openHelp(_ sender: Any?) { NSWorkspace.shared.open(URL(string: "https://github.com/ruolez/vs-gammon#readme")!) }
     @objc func openEngineSource(_ sender: Any?) { NSWorkspace.shared.open(URL(string: "https://ftp.gnu.org/gnu/gnubg/")!) }
     @objc func checkForUpdates(_ sender: Any?) { web.load("/settings#updates") }

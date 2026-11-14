@@ -13,6 +13,7 @@ final class AppWindow: NSWindow {
 
 final class WebController: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandlerWithReply {
     let webView: WKWebView
+    let play = PlayController()
     weak var owner: AppDelegate?
 
     override init() {
@@ -20,6 +21,8 @@ final class WebController: NSObject, WKNavigationDelegate, WKUIDelegate, WKScrip
         config.websiteDataStore = .default()
         let marker = WKUserScript(source: "document.documentElement.dataset.shell='mac'", injectionTime: .atDocumentStart, forMainFrameOnly: true)
         config.userContentController.addUserScript(marker)
+        // Live stats keep reading the game while the window is behind others.
+        if #available(macOS 14.0, *) { config.preferences.inactiveSchedulingPolicy = .none }
         webView = WKWebView(frame: .zero, configuration: config)
         super.init()
         config.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "vsg")
@@ -28,10 +31,21 @@ final class WebController: NSObject, WKNavigationDelegate, WKUIDelegate, WKScrip
         webView.allowsBackForwardNavigationGestures = true
         webView.setValue(false, forKey: "drawsBackground")
         if #available(macOS 13.3, *) { webView.isInspectable = UserDefaults.standard.bool(forKey: "inspectable") }
+        play.onState = { [weak self] state in self?.dispatch("playstate", state) }
+    }
+
+    /// App → page: a DOM event on the document, the same shape the Windows app sends.
+    func dispatch(_ event: String, _ detail: [String: Any]) {
+        guard let data = try? JSONSerialization.data(withJSONObject: detail), let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("document.dispatchEvent(new CustomEvent('\(event)',{detail:\(json)}))")
     }
 
     func load(_ path: String) {
         webView.load(URLRequest(url: URL(string: path, relativeTo: serverBase)!))
+    }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        if webView.url?.path != "/play" { play.hide() }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -91,6 +105,10 @@ final class WebController: NSObject, WKNavigationDelegate, WKUIDelegate, WKScrip
             owner?.updater.check { replyHandler($0, $1) }
         case "installUpdate":
             owner?.installUpdate { replyHandler($0, $1) }
+        case "play" where args["action"] as? String == "snapshot":
+            play.snapshot(width: args["width"] as? Double ?? 1000) { replyHandler($0.map { ["image": $0] } ?? NSNull(), nil) }
+        case "play":
+            replyHandler(play.handle(args), nil)
         case "notify":
             notify(args)
             replyHandler(nil, nil)

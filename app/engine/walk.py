@@ -83,7 +83,7 @@ def walk_match(match, helpers, with_records=False, base_plies=None):
     depth it was evaluated at (used after a deeper analysis of one decision)."""
     info = match["match-info"]
     match_length = info.get("match-length", 0)
-    games, decisions = [], []
+    games, decisions, luck = [], [], []
 
     for game_no, game in enumerate(match["games"], start=1):
         ginfo = game["info"]
@@ -144,6 +144,9 @@ def walk_match(match, helpers, with_records=False, base_plies=None):
             analysis = record.get("analysis") or {}
 
             if action == "move":
+                if "luck-value" in analysis:
+                    luck.append({"game_no": game_no, "move_no": move_no, "player": player, "dice": record.get("dice"),
+                                 "luck": analysis["luck-value"], **({"record_index": record_index} if with_records else {})})
                 if "nd-cubeful-eq" in analysis:
                     _, base = context(player, player, record["board"])
                     cube = cube_equities(analysis, player)
@@ -193,7 +196,7 @@ def walk_match(match, helpers, with_records=False, base_plies=None):
                     cube_owner = player
                 last_double = None
 
-    return {
+    result = {
         "match": {
             "match_length": match_length,
             "player1": info.get("X", {}).get("name"),
@@ -202,3 +205,6 @@ def walk_match(match, helpers, with_records=False, base_plies=None):
         "games": games,
         "decisions": decisions,
     }
+    if luck:
+        result["luck"] = luck
+    return result
