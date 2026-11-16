@@ -79,6 +79,7 @@ class LiveSession:
         self.generation = {}
         self.version = 0
         self.reading = {"found": False, "why": "no screenshot yet", "at": None}
+        self.checker_colours = {}
         self.engine_state = {"busy": False, "error": None}
         self.lock = threading.RLock()
         self.wake = threading.Event()
@@ -91,6 +92,7 @@ class LiveSession:
     def feed(self, reading):
         with self.lock:
             self.reading = {"found": bool(reading.get("found")), "why": reading.get("why"), "at": time.time()}
+            self.checker_colours.update(reading.get("checkers") or {})
             actions = self.tracker.feed(reading)
             for action in actions:
                 self._apply(action)

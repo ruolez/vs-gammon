@@ -1,8 +1,14 @@
 /* Plays a stored match on a board drawn like BackgammonGalaxy's, one screen at a time, so the Play online reader
-   can be tested on it: the page only shows pixels, the reader has to work the moves out. */
+   can be tested on it: the page only shows pixels, the reader has to work the moves out. ?theme=blue draws Galaxy's
+   blue board instead of the green one. */
 (function () {
-  const PALETTE = { page: "#030712", frame: "#423122", felt: "#4a6439", tray: "#38291d", red: "#ff4422", beige: "#c9b797",
-    dark: "#0d0d14", darkEdge: "#000000", light: "#ffffff", lightEdge: "#e6e6e6", label: "#c9b797" };
+  const THEMES = {
+    green: { page: "#030712", frame: "#423122", felt: "#4a6439", tray: "#38291d", red: "#ff4422", beige: "#c9b797",
+      dark: "#0d0d14", darkEdge: "#000000", light: "#ffffff", lightEdge: "#e6e6e6", label: "#c9b797" },
+    blue: { page: "#030513", frame: "#05032c", felt: "#688edd", tray: "#192053", red: "#5d7dd3", beige: "#86a3e4",
+      dark: "#3952b1", darkEdge: "#3952b1", light: "#edeffc", lightEdge: "#edeffc", label: "#8f95b2" },
+  };
+  const PALETTE = THEMES[new URLSearchParams(location.search).get("theme")] || THEMES.green;
   const PW = 32;
   const FIELD = 6 * PW;
   const BAR = Math.round(PW * 1.3);

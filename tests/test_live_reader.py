@@ -6,7 +6,8 @@ from app.live.reader import read_board
 from app.live.replay import START, screens
 from app.live.transcript import parse_mat
 from tests.board_image import draw_board
-from tests.test_live_tracker import reading_for
+from app.live.tracker import Tracker
+from tests.test_live_tracker import as_play, fixture_games, played, reading_for, watch
 
 FIXTURE = os.path.join(os.path.dirname(__file__), "fixtures", "galaxy_3pt.mat")
 FIELDS = ("dark", "light", "capped", "bar_dark", "bar_light", "off_dark", "off_light", "dice")
@@ -42,9 +43,39 @@ class ReadBoard(unittest.TestCase):
         image = draw_board(screen["frame"], dice=screen["dice"], pw=22, page=(1000, 640), origin=(500, 120))
         self.assertEqual(comparable(read_board(image)), comparable(reading_for(screen["frame"], screen["dice"])))
 
+    def test_reads_the_blue_theme(self):
+        wrong = []
+        for screen in sample_screens(20, seed=7):
+            image = draw_board(screen["frame"], dice=screen["dice"], theme="blue")
+            if comparable(read_board(image)) != comparable(reading_for(screen["frame"], screen["dice"])):
+                wrong.append(screen)
+        self.assertEqual(len(wrong), 0)
+
+    def test_a_game_on_the_blue_board_is_followed_move_by_move(self):
+        header, games = fixture_games()
+        shown = screens(games[:1], header["match_length"])
+        readings, known = [], {}
+        for screen in shown:
+            readings.append(read_board(draw_board(screen["frame"], dice=screen["dice"], theme="blue", buttons=True), known))
+            known.update(readings[-1].get("checkers") or {})
+        actions = watch(Tracker(), readings)
+        self.assertEqual(played(actions), [[as_play(a) for a in games[0]["actions"] if a["kind"] == "move"]])
+
+    def test_buttons_between_the_trays_are_not_borne_off_checkers(self):
+        screen = next(s for s in sample_screens(80, seed=6) if s["dice"])
+        image = draw_board(screen["frame"], dice=screen["dice"], theme="blue", buttons=True)
+        self.assertEqual(comparable(read_board(image)), comparable(reading_for(screen["frame"], screen["dice"])))
+
+    def test_blue_light_checkers_at_the_bottom_with_light_dice(self):
+        screen = next(s for s in sample_screens(80, seed=8) if s["dice"])
+        image = draw_board(screen["frame"], bottom="light", dice=screen["dice"], dice_body="light", theme="blue")
+        self.assertEqual(comparable(read_board(image)), comparable(reading_for(screen["frame"], screen["dice"], bottom="light")))
+
     def test_a_page_without_a_board(self):
         from PIL import Image
         self.assertEqual(read_board(Image.new("RGB", (800, 500), (250, 250, 250))), {"found": False, "why": "no board"})
 
     def test_starting_position(self):
-        self.assertEqual(comparable(read_board(draw_board(START))), comparable(reading_for(START)))
+        for theme in ("green", "blue"):
+            with self.subTest(theme=theme):
+                self.assertEqual(comparable(read_board(draw_board(START, theme=theme))), comparable(reading_for(START)))

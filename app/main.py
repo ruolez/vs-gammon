@@ -613,7 +613,7 @@ def create_app(config=None):
             image.load()
         except (OSError, Image.DecompressionBombError) as exc:
             raise ValueError("that is not an image") from exc
-        reading = read_board(image)
+        reading = read_board(image, dict(session.checker_colours))
         session.feed(reading)
         return jsonify(found=reading["found"], why=reading.get("why"), geometry=reading.get("geometry"),
                        version=session.version)
