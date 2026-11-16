@@ -8,7 +8,7 @@ import threading
 from flask import Flask, abort, g, jsonify, redirect, request, send_file, send_from_directory
 from PIL import Image
 
-from app import db, deep_jobs, jobs, migrate_docker, watcher
+from app import db, deep_jobs, jobs, migrate_docker, updater, watcher
 from app.dashboard import build_dashboard
 from app.analysis import classify, grade_checker, grade_cube, is_correct, review_state, summarize
 from app.engine import deep
@@ -120,6 +120,10 @@ def create_app(config=None):
         DOCKER_SOURCE=os.environ.get("VSG_DOCKER_SOURCE") or None,
         START_WORKER=True,
         MAX_CONTENT_LENGTH=MAX_UPLOAD_BYTES * 20,
+        UPDATES=None,
+        UPDATE_ROOT=updater.APP_ROOT,
+        UPDATE_GET=updater.fetch,
+        UPDATE_KEY=updater.PUBLIC_KEY,
     )
     app.config.update(config or {})
     data_dir = app.config["DATA_DIR"]
@@ -635,6 +639,46 @@ def create_app(config=None):
         result = import_match_bytes(conn(), data_dir, session.transcript().encode(), f"Live {stamp}.mat")
         wake.set()
         return jsonify(result)
+
+    update_lock = threading.Lock()
+    update_root = app.config["UPDATE_ROOT"]
+    updates_on = updater.supported(update_root) if app.config["UPDATES"] is None else app.config["UPDATES"]
+
+    def update_info():
+        if not updates_on:
+            abort(404)
+        return updater.build_info(update_root)
+
+    @app.get("/api/update")
+    def update_status():
+        return jsonify(current=update_info()["version"])
+
+    @app.post("/api/update/check")
+    def update_check():
+        update_info()
+        try:
+            result = updater.check(update_root, app.config["UPDATE_GET"])
+        except updater.UpdateError as exc:
+            return jsonify(error=exc.reason), 502
+        result.pop("release")
+        return jsonify(result)
+
+    @app.post("/api/update/download")
+    def update_download():
+        """Fetches, verifies and unpacks the newest release next to the app; the window then swaps it in."""
+        update_info()
+        if not update_lock.acquire(blocking=False):
+            return jsonify(ok=False, reason="busy")
+        try:
+            found = updater.check(update_root, app.config["UPDATE_GET"])
+            if not found["available"]:
+                return jsonify(ok=False, reason="current")
+            updater.stage(found["release"], update_root, app.config["UPDATE_GET"], app.config["UPDATE_KEY"])
+            return jsonify(ok=True, version=found["latest"])
+        except updater.UpdateError as exc:
+            return jsonify(ok=False, reason=exc.reason)
+        finally:
+            update_lock.release()
 
     @app.get("/api/live/replay/<int:match_id>")
     def live_replay(match_id):

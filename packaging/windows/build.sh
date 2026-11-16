@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Builds VS Gammon for Windows on this Mac: build.sh arm64|x64 [--engine]
-# dist/windows/<arch>/VS Gammon/ (run VS Gammon.exe) and dist/release/VS-Gammon-<version>-windows-<arch>.zip.
+# dist/windows/<arch>/VS Gammon/ (run VS Gammon.exe) and dist/release/VS-Gammon-<version>-windows-<arch>.zip, plus its
+# .sig for the app's updater when the release key is on this Mac (~/.config/vs-gammon/release.key).
 # The engine is cross-compiled in Docker (llvm-mingw); Python is python-build-standalone's Windows build.
 # Needs packaging/macos/build (build-deps.sh, build-gnubg.sh) for the source archives, engine data and a host Python.
 set -euo pipefail
@@ -60,7 +61,7 @@ qlmanage -t -s 1024 -o "$work" "$ROOT/assets/icon.svg" >/dev/null 2>&1
 "$HOST_PY" -c "from PIL import Image; Image.open('$work/icon.svg.png').save('$BUILD/vs-gammon.ico', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])"
 rm -rf "$work"
 IFS=. read -r major minor patch <<< "$VERSION"
-in_docker bash -c "cp /scripts-win/launcher.c /scripts-win/launcher.rc . && \
+in_docker bash -c "cp /scripts-win/launcher.c /scripts-win/launcher.rc /scripts-win/launcher.manifest . && \
   $HOST-windres -DVER_MAJOR=$major -DVER_MINOR=$minor -DVER_PATCH=$patch -DVER_TEXT='\\\"$VERSION\\\"' launcher.rc -O coff -o launcher.res.o && \
   $HOST-clang -O2 -municode -mwindows -Wall -Wno-unknown-pragmas -I. -o launcher.exe launcher.c launcher.res.o -lws2_32 -lshell32 -ladvapi32 -lole32 -luuid -ldwmapi -lcrypt32 && \
   $HOST-strip launcher.exe"
@@ -82,13 +83,21 @@ rsync -a --exclude '__pycache__' --exclude '*.pyc' "$ROOT/app" "$OUT/"
 cp "$BUILD/engine/bin/gnubg.exe" "$OUT/engine/bin/"
 for item in gnubg.wd gnubg_os0.bd gnubg_ts0.bd met; do cp -R "$MAC/engine/share/gnubg/$item" "$OUT/engine/share/gnubg/"; done
 "$HOST_PY" -m compileall -q --invalidation-mode unchecked-hash "$OUT/python/Lib" "$OUT/app" >/dev/null || true
+printf '{"version": "%s", "arch": "%s"}\n' "$VERSION" "$ARCH" > "$OUT/build-info.json"
 cat > "$OUT/About the engine.txt" <<NOTE
 VS Gammon includes GNU Backgammon 1.08.003, free software under the GNU General Public License version 3.
 Its unmodified source code: https://ftp.gnu.org/gnu/gnubg/gnubg-release-1.08.003-sources.tar.gz
 How it is built here: https://github.com/ruolez/vs-gammon/tree/main/packaging/windows
 NOTE
 
-rm -f "$ZIP"
-(cd "$ROOT/dist/windows/$ARCH" && ditto -c -k --keepParent "VS Gammon" "$ZIP")
+rm -f "$ZIP" "$ZIP.sig"
+(cd "$ROOT/dist/windows/$ARCH" && ditto -c -k --norsrc --noextattr --keepParent "VS Gammon" "$ZIP")
+if [[ -f "$HOME/.config/vs-gammon/release.key" ]]; then
+  SIGNER="$ROOT/packaging/macos/build/release-key"
+  swiftc -O -o "$SIGNER" "$ROOT/packaging/macos/tools/release-key.swift"
+  "$SIGNER" sign "$ZIP"
+else
+  echo "no release key: the zip is not signed, so installed apps won't take it as an update" >&2
+fi
 du -sh "$OUT" "$ZIP"
 echo "built $OUT"

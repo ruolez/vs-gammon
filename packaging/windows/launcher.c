@@ -2,7 +2,9 @@
  * its own with two WebView2 views: the app, and on the Play online page the game site laid over the page's
  * placeholder (sites like BackgammonGalaxy refuse to be shown in an iframe). The window opens on starting.html,
  * which switches to the app once the server answers. Closing the window closes the server's stdin, which stops it.
- * Without the WebView2 runtime the app opens in the default browser instead. */
+ * Without the WebView2 runtime the app opens in the default browser instead.
+ * Updates: the server unpacks a verified release next to the app folder ("<folder>.update\VS Gammon"); the page then
+ * calls "update", and a copy of this program in %TEMP% (--apply-update) swaps the folders once the app has quit. */
 #define _WIN32_WINNT 0x0A00
 #define WIN32_LEAN_AND_MEAN
 #define COBJMACROS
@@ -85,6 +87,101 @@ static void show_in_browser(void) {
 }
 
 static int starts_with(const wchar_t *text, const wchar_t *prefix) { return text && wcsncmp(text, prefix, wcslen(prefix)) == 0; }
+
+/* ---------- updates ---------- */
+
+/* No "update", "setup" or "install" in the name: Windows would treat the copy as an installer. */
+#define UPDATER_PREFIX L"VS Gammon Relaunch "
+#define QUIT_TIMER 2
+
+static void delete_tree(const wchar_t *path) {
+    wchar_t from[MAX_PATH + 2] = {0};
+    if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES) return;
+    wcsncpy(from, path, MAX_PATH);
+    SHFILEOPSTRUCTW op = {0};
+    op.wFunc = FO_DELETE;
+    op.pFrom = from;
+    op.fFlags = FOF_NO_UI;
+    SHFileOperationW(&op);
+}
+
+static void remove_old_updaters(void) {
+    wchar_t temp[MAX_PATH], pattern[MAX_PATH], path[MAX_PATH];
+    if (!GetTempPathW(MAX_PATH, temp)) return;
+    swprintf(pattern, MAX_PATH, L"%ls%ls*.exe", temp, UPDATER_PREFIX);
+    WIN32_FIND_DATAW found;
+    HANDLE find = FindFirstFileW(pattern, &found);
+    if (find == INVALID_HANDLE_VALUE) return;
+    do {
+        swprintf(path, MAX_PATH, L"%ls%ls", temp, found.cFileName);
+        DeleteFileW(path);
+    } while (FindNextFileW(find, &found));
+    FindClose(find);
+}
+
+static void open_app(const wchar_t *folder) {
+    wchar_t exe[MAX_PATH];
+    swprintf(exe, MAX_PATH, L"%ls\\VS Gammon.exe", folder);
+    ShellExecuteW(NULL, L"open", exe, NULL, folder, SW_SHOWNORMAL);
+}
+
+/* The updater copy: args = --apply-update <pid> "<app folder>". Waits for the app to quit, moves the app folder aside,
+ * moves the new one in (or the old one back) and opens the app again. */
+static int apply_update(const wchar_t *args) {
+    wchar_t *rest;
+    DWORD pid = wcstoul(args + wcslen(L"--apply-update"), &rest, 10);
+    wchar_t target[MAX_PATH] = {0}, staging[MAX_PATH], staged[MAX_PATH], old[MAX_PATH];
+    const wchar_t *open_quote = wcschr(rest, L'"'), *close_quote = open_quote ? wcschr(open_quote + 1, L'"') : NULL;
+    if (!pid || !close_quote || close_quote - open_quote - 1 >= MAX_PATH - 16) return 1;
+    wcsncpy(target, open_quote + 1, (size_t)(close_quote - open_quote - 1));
+    swprintf(staging, MAX_PATH, L"%ls.update", target);
+    swprintf(staged, MAX_PATH, L"%ls\\VS Gammon", staging);
+    swprintf(old, MAX_PATH, L"%ls.old", target);
+
+    HANDLE app = OpenProcess(SYNCHRONIZE, FALSE, pid);
+    if (app) {
+        WaitForSingleObject(app, 60000);
+        CloseHandle(app);
+    }
+    delete_tree(old);
+    /* The server and the web view's helpers can take a moment to let go of files in the folder. */
+    int moved = 0;
+    for (int i = 0; i < 160 && !(moved = MoveFileExW(target, old, 0)); i++) Sleep(250);
+    if (!moved) {
+        MessageBoxW(NULL, L"VS Gammon could not be updated because its folder is in use. Close any window showing the "
+                          L"VS Gammon folder and try the update again.", L"VS Gammon", MB_ICONWARNING | MB_OK);
+        open_app(target);
+        return 1;
+    }
+    if (!MoveFileExW(staged, target, 0)) {
+        MoveFileExW(old, target, 0);
+        MessageBoxW(NULL, L"VS Gammon could not be updated. Your current version is unchanged.", L"VS Gammon",
+                    MB_ICONWARNING | MB_OK);
+        open_app(target);
+        return 1;
+    }
+    open_app(target);
+    delete_tree(old);
+    delete_tree(staging);
+    return 0;
+}
+
+/* Page → app: "update" {action: "apply"}. Starts the updater copy; the window closes once the page has its reply. */
+static int start_update(void) {
+    wchar_t staged_exe[MAX_PATH], self[MAX_PATH], temp[MAX_PATH], copy[MAX_PATH], command[3 * MAX_PATH];
+    swprintf(staged_exe, MAX_PATH, L"%ls.update\\VS Gammon\\VS Gammon.exe", app_dir);
+    if (GetFileAttributesW(staged_exe) == INVALID_FILE_ATTRIBUTES || !GetModuleFileNameW(NULL, self, MAX_PATH)
+        || !GetTempPathW(MAX_PATH, temp)) return 0;
+    swprintf(copy, MAX_PATH, L"%ls%ls%lu.exe", temp, UPDATER_PREFIX, GetCurrentProcessId());
+    if (!CopyFileW(self, copy, FALSE)) return 0;
+    swprintf(command, 3 * MAX_PATH, L"\"%ls\" --apply-update %lu \"%ls\"", copy, GetCurrentProcessId(), app_dir);
+    STARTUPINFOW si = {sizeof si};
+    PROCESS_INFORMATION pi;
+    if (!CreateProcessW(copy, command, NULL, NULL, FALSE, 0, NULL, temp, &si, &pi)) return 0;
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return 1;
+}
 
 static int is_web(const wchar_t *uri) { return starts_with(uri, L"http://") || starts_with(uri, L"https://"); }
 
@@ -401,6 +498,10 @@ static HRESULT STDMETHODCALLTYPE on_message(ICoreWebView2WebMessageReceivedEvent
                 return S_OK;
             }
             swprintf(reply, sizeof reply / sizeof *reply, L"{\"id\":%d,\"result\":null}", id);
+        } else if (!wcscmp(name, L"update") && !wcscmp(action, L"apply")) {
+            int started = start_update();
+            swprintf(reply, sizeof reply / sizeof *reply, L"{\"id\":%d,\"result\":{\"ok\":%ls}}", id, started ? L"true" : L"false");
+            if (started) SetTimer(window, QUIT_TIMER, 300, NULL);
         } else if (!wcscmp(name, L"play")) {
             play_handle(call_args ? call_args : L"");
             play_state_json(state, sizeof state / sizeof *state);
@@ -579,6 +680,11 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT message, WPARAM wparam, LPAR
             follow_system_theme();
             break;
         case WM_TIMER:
+            if (wparam == QUIT_TIMER) {
+                KillTimer(hwnd, QUIT_TIMER);
+                PostMessageW(hwnd, WM_CLOSE, 0, 0);
+                return 0;
+            }
             if (WaitForSingleObject(server_process, 0) == WAIT_OBJECT_0)
                 fail(server_up ? L"The VS Gammon server stopped unexpectedly. Open VS Gammon again."
                                : L"The VS Gammon server stopped while starting.");
@@ -624,7 +730,8 @@ static int open_window(HINSTANCE instance, int show) {
 }
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE prev, PWSTR args, int show) {
-    (void)prev; (void)args;
+    (void)prev;
+    if (starts_with(args, L"--apply-update")) return apply_update(args);
     wchar_t local[MAX_PATH];
     if (!GetEnvironmentVariableW(L"LOCALAPPDATA", local, MAX_PATH)) wcscpy(local, L".");
     swprintf(data_dir, MAX_PATH, L"%ls\\VS Gammon", local);
@@ -647,6 +754,16 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE prev, PWSTR args, int show) {
     WSAStartup(MAKEWORD(2, 2), &wsa);
     GetModuleFileNameW(NULL, app_dir, MAX_PATH);
     *wcsrchr(app_dir, L'\\') = 0;
+    /* Nothing started from here may hold the app folder open, or an update can't move it. */
+    SetCurrentDirectoryW(data_dir);
+    {
+        wchar_t leftover[MAX_PATH];
+        swprintf(leftover, MAX_PATH, L"%ls.old", app_dir);
+        delete_tree(leftover);
+        swprintf(leftover, MAX_PATH, L"%ls.update", app_dir);
+        delete_tree(leftover);
+        remove_old_updaters();
+    }
     if (server_ready()) fail(L"Another program is already using port 5565, so VS Gammon cannot start.");
 
     wchar_t log_path[MAX_PATH], python[MAX_PATH], command[2 * MAX_PATH], path_var[32767], new_path[32767];

@@ -268,6 +268,14 @@ const Shell = {
       </nav>
       <div class="spacer"></div>
       <div class="sidebar-foot">
+        <div class="update-card" id="update-card" hidden>
+          <a class="update-rail btn ghost sm icon-only" href="/settings#updates" id="update-rail">${icon("download")}</a>
+          <div class="update-text"><strong>${t("Update available")}</strong><span id="update-detail"></span></div>
+          <div class="update-actions">
+            <button class="btn sm" id="update-now">${t("Update and restart")}</button>
+            <button class="btn ghost sm" id="update-later">${t("Later")}</button>
+          </div>
+        </div>
         <div class="watch-line" id="watch-line" title="${t("Watched folders")}"><i class="dot off"></i><span></span></div>
         <div class="text-size" role="group" aria-label="${t("Text size")}">
           <button class="btn ghost sm icon-only foot-btn" id="text-down" title="${t("Smaller text")} (−)" aria-label="${t("Smaller text")}">A−</button>
@@ -417,7 +425,110 @@ const Native = {
   },
 };
 
-document.addEventListener("DOMContentLoaded", () => { Shell.render(); Native.init(); });
+/* ---------- app updates: the macOS app in Swift (Updater.swift), the Windows app through the server (app/updater.py)
+   and its window (launcher.c). None in a browser. Checked when the app starts and once a day. ---------- */
+const Updates = {
+  platform: window.webkit?.messageHandlers?.vsg ? "mac" : window.chrome?.webview ? "windows" : null,
+  DAY_MS: 24 * 60 * 60 * 1000,
+  current: null,
+  newer(candidate, current) {
+    const parts = (v) => String(v || "").replace(/^v/, "").split(".").map(Number);
+    const a = parts(candidate), b = parts(current);
+    if (a.some(Number.isNaN) || b.some(Number.isNaN)) return false;
+    for (let i = 0; i < Math.max(a.length, b.length); i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+    return false;
+  },
+  stored() {
+    try { return JSON.parse(localStorage.getItem("ga-update")) || {}; } catch (_) { return {}; }
+  },
+  async version() {
+    if (this.current) return this.current;
+    if (this.platform === "mac") this.current = (await Native.call("appInfo")).version;
+    else if (this.platform === "windows") this.current = (await api.get("/api/update")).current;
+    return this.current;
+  },
+  /* {current, latest, available}; remembered so every page can show the card without asking GitHub again. */
+  async check() {
+    const result = this.platform === "mac" ? await Native.call("checkUpdate") : await api.post("/api/update/check");
+    this.current = result.current;
+    const latest = result.available ? result.latest : result.current;
+    try {
+      localStorage.setItem("ga-update", JSON.stringify({ latest, checked: Date.now() }));
+      sessionStorage.setItem("ga-update-checked", "1");
+    } catch (_) {}
+    this.show();
+    return { current: result.current, latest, available: Boolean(result.available) };
+  },
+  /* {ok} or {ok: false, reason}. On success the app quits and opens the new version. */
+  async install() {
+    try {
+      const found = await this.check();
+      if (!found.available) return { ok: false, reason: "current" };
+      if (this.platform === "mac") return await Native.call("installUpdate");
+      const staged = await api.post("/api/update/download");
+      if (!staged.ok) return staged;
+      const applied = await Host.call("update", { action: "apply" });
+      return applied?.ok ? { ok: true } : { ok: false, reason: "failed" };
+    } catch (_) {
+      return { ok: false, reason: "network" };
+    }
+  },
+  failureText(reason) {
+    if (reason === "network") return t("Could not reach the update server. Check your connection.");
+    if (reason === "current") return t("You have the latest version");
+    if (reason === "busy") return t("The update is already downloading.");
+    if (reason === "signature" || reason === "bad") return t("The download did not pass the safety check. Your current version is unchanged.");
+    if (reason === "move") {
+      return this.platform === "mac" ? t("Move VS Gammon to your Applications folder, then try again.")
+        : t("VS Gammon can't update itself in this folder. Move the VS Gammon folder somewhere you can save files, such as Documents, then try again.");
+    }
+    return t("The update could not be installed. Your current version is unchanged.");
+  },
+  show() {
+    const card = $("update-card");
+    if (!card || !this.current) return;
+    const { latest } = this.stored();
+    let later = null;
+    try { later = localStorage.getItem("ga-update-later"); } catch (_) {}
+    card.hidden = !this.newer(latest, this.current) || later === latest;
+    $("update-detail").textContent = t("VS Gammon {version} is ready to install", { version: latest });
+    $("update-rail").title = t("VS Gammon {version} is ready to install", { version: latest });
+  },
+  async run() {
+    const button = $("update-now");
+    button.disabled = true;
+    $("update-later").disabled = true;
+    $("update-detail").textContent = t("Downloading the update…");
+    const result = await this.install();
+    if (result.ok) return;
+    button.disabled = false;
+    $("update-later").disabled = false;
+    this.show();
+    toast(this.failureText(result.reason), true);
+  },
+  async init() {
+    if (!this.platform) return;
+    try { await this.version(); } catch (_) { return; }
+    this.show();
+    if ($("update-card")) {
+      $("update-now").addEventListener("click", () => this.run());
+      $("update-later").addEventListener("click", () => {
+        try { localStorage.setItem("ga-update-later", this.stored().latest); } catch (_) {}
+        this.show();
+      });
+    }
+    const due = () => {
+      let checkedThisLaunch = false;
+      try { checkedThisLaunch = sessionStorage.getItem("ga-update-checked") === "1"; } catch (_) {}
+      return !checkedThisLaunch || Date.now() - (this.stored().checked || 0) > this.DAY_MS;
+    };
+    const quietly = () => { if (due()) this.check().catch(() => {}); };
+    quietly();
+    setInterval(quietly, 60 * 60 * 1000);
+  },
+};
+
+document.addEventListener("DOMContentLoaded", () => { Shell.render(); Native.init(); Updates.init(); });
 document.addEventListener("keydown", (ev) => {
   if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName) || ev.metaKey || ev.ctrlKey) return;
   if (ev.key === "\\") Shell.toggleCollapse();

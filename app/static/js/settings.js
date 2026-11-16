@@ -101,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   $("watch-interval").addEventListener("change", () => save({ watch_interval: Number($("watch-interval").value) }, t("Check interval saved")));
-  if (Native.available) initUpdates();
+  if (Updates.platform) initUpdates();
   document.addEventListener("shellinfo", (ev) => {
     if (ev.detail.engine) $("engine-version").textContent = t("Runs every match again with {engine}", { engine: ev.detail.engine.replace(/ \d{8}$/, "") });
   });
@@ -110,26 +110,29 @@ document.addEventListener("DOMContentLoaded", () => {
 async function initUpdates() {
   $("updates").hidden = false;
   $("updates-link").hidden = false;
-  const { version } = await Native.call("appInfo");
-  $("app-version").textContent = t("VS Gammon {version}", { version });
+  try {
+    $("app-version").textContent = t("VS Gammon {version}", { version: await Updates.version() });
+  } catch (_) {}
   $("check-updates").addEventListener("click", async () => {
     $("check-updates").disabled = true;
     try {
-      const result = await Native.call("checkUpdate");
+      const result = await Updates.check();
       $("update-status").textContent = result.available ? t("Version {version} is available", { version: result.latest }) : t("You have the latest version");
       $("install-update").hidden = !result.available;
     } catch (_) {
-      $("update-status").textContent = t("Could not reach the update server. Check your connection.");
+      $("update-status").textContent = Updates.failureText("network");
     }
     $("check-updates").disabled = false;
   });
   $("install-update").addEventListener("click", async () => {
     $("install-update").disabled = true;
+    $("check-updates").disabled = true;
     $("update-status").textContent = t("Downloading the update…");
-    const result = await Native.call("installUpdate");
+    const result = await Updates.install();
     if (result.ok) return;
     $("install-update").disabled = false;
-    $("update-status").textContent = result.reason === "move" ? t("Move VS Gammon to your Applications folder, then try again.") : t("The update could not be installed. Your current version is unchanged.");
+    $("check-updates").disabled = false;
+    $("update-status").textContent = Updates.failureText(result.reason);
   });
   if (location.hash === "#updates") $("check-updates").click();
 }

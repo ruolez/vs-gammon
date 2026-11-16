@@ -194,6 +194,16 @@ p { margin: 0; text-wrap: pretty; }
 .watch-line .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good-strong); margin-top: 5px; flex: none; box-shadow: 0 0 0 3px var(--good-soft); }
 .watch-line .dot.off { background: var(--text-4); box-shadow: none; }
 .engine-line { font-size: 0.6875rem; color: var(--text-4); padding: 0 6px; }
+.update-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--radius-s); background: var(--accent-soft); }
+.update-text { display: flex; flex-direction: column; gap: 2px; font-size: 0.8125rem; line-height: 1.35; }
+.update-text span { color: var(--text-2); font-size: 0.75rem; }
+.update-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.update-actions .btn { flex: 1 1 auto; }
+.sidebar .update-rail { display: none; position: relative; color: var(--accent-text); }
+.sidebar .update-rail::after { content: ""; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+[data-sidebar="collapsed"] .app .update-card { padding: 0; background: none; align-items: center; }
+[data-sidebar="collapsed"] .app .update-text, [data-sidebar="collapsed"] .app .update-actions { display: none; }
+[data-sidebar="collapsed"] .app .sidebar .update-rail { display: inline-flex; }
 .sidebar .theme-cycle { display: none; }
 [data-sidebar="collapsed"] .app .sidebar .theme-cycle { display: inline-flex; }
 [data-sidebar="collapsed"] .app .seg.theme, [data-sidebar="collapsed"] .app .watch-line { display: none; }

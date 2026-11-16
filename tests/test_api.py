@@ -11,7 +11,10 @@ try:
 except ImportError:
     raise unittest.SkipTest("Flask is only installed in the container")
 
-from app import db, deep_jobs, jobs  # noqa: E402
+import base64  # noqa: E402
+import json  # noqa: E402
+
+from app import db, deep_jobs, jobs, updater  # noqa: E402
 from app.importer import fill_missing_keys, upload_path  # noqa: E402
 from app.matfile import parse_mat_header  # noqa: E402
 from app.engine.runner import Cancelled, EngineError  # noqa: E402
@@ -949,6 +952,72 @@ class ImportDocker(ApiTestCase):
     def test_import_is_refused_when_there_is_nothing_to_bring_over(self):
         response = self.client.post("/api/import-docker")
         self.assertEqual((response.status_code, response.get_json()["error"]), (400, "there is nothing to bring over"))
+
+
+class UpdateApi(unittest.TestCase):
+    """The Windows app's update routes, with GitHub replaced by a dict of URL -> bytes."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.root = os.path.join(self.tmp, "VS Gammon")
+        os.makedirs(self.root)
+        with open(os.path.join(self.root, "build-info.json"), "w") as f:
+            json.dump({"version": "1.6.1", "arch": "arm64"}, f)
+        update = os.path.join(FIXTURES, "update")
+        with open(os.path.join(update, "good.zip"), "rb") as z, open(os.path.join(update, "good.zip.sig"), "rb") as sig, \
+                open(os.path.join(update, "public-key.txt")) as key:
+            self.files = {"https://example.test/z": z.read(), "https://example.test/z.sig": sig.read()}
+            self.key = base64.b64decode(key.read().strip())
+        self.feed([("9.9.9", "https://example.test/z")])
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp)
+
+    def feed(self, versions):
+        self.files[updater.FEED] = json.dumps([
+            {"tag_name": f"v{v}-windows", "assets": [{"name": f"VS-Gammon-{v}-windows-arm64.zip", "browser_download_url": url},
+                                                     {"name": f"VS-Gammon-{v}-windows-arm64.zip.sig", "browser_download_url": url + ".sig"}]}
+            for v, url in versions]).encode()
+
+    def get(self, url):
+        if url not in self.files:
+            raise updater.UpdateError("network")
+        return self.files[url]
+
+    def client(self, updates=True):
+        app = create_app({"DATA_DIR": os.path.join(self.tmp, "data"), "EXPORT_DIR": os.path.join(self.tmp, "exports"),
+                          "START_WORKER": False, "TESTING": True, "UPDATES": updates, "UPDATE_ROOT": self.root,
+                          "UPDATE_GET": self.get, "UPDATE_KEY": self.key})
+        return app.test_client()
+
+    def test_without_the_windows_app_there_are_no_update_routes(self):
+        client = self.client(updates=False)
+        self.assertEqual([client.get("/api/update").status_code, client.post("/api/update/check").status_code,
+                          client.post("/api/update/download").status_code], [404, 404, 404])
+
+    def test_status_and_check(self):
+        client = self.client()
+        self.assertEqual((client.get("/api/update").get_json(), client.post("/api/update/check").get_json()),
+                         ({"current": "1.6.1"}, {"current": "1.6.1", "latest": "9.9.9", "available": True}))
+
+    def test_check_without_a_connection(self):
+        del self.files[updater.FEED]
+        response = self.client().post("/api/update/check")
+        self.assertEqual((response.status_code, response.get_json()), (502, {"error": "network"}))
+
+    def test_download_stages_the_verified_build_next_to_the_app(self):
+        result = self.client().post("/api/update/download").get_json()
+        staged = os.path.join(self.tmp, "VS Gammon.update", "VS Gammon")
+        self.assertEqual((result, sorted(os.listdir(staged))), ({"ok": True, "version": "9.9.9"}, ["VS Gammon.exe", "app", "build-info.json"]))
+
+    def test_download_refuses_a_file_the_release_key_did_not_sign(self):
+        self.files["https://example.test/z.sig"] = bytes(64)
+        result = self.client().post("/api/update/download").get_json()
+        self.assertEqual((result, os.path.exists(os.path.join(self.tmp, "VS Gammon.update"))), ({"ok": False, "reason": "signature"}, False))
+
+    def test_download_when_already_up_to_date(self):
+        self.feed([("1.6.1", "https://example.test/z")])
+        self.assertEqual(self.client().post("/api/update/download").get_json(), {"ok": False, "reason": "current"})
 
 
 if __name__ == "__main__":
