@@ -354,6 +354,12 @@ dialog.modal[open] { display: flex; flex-direction: column; animation: dialog-in
 /* ---------- board ---------- */
 .board-svg { width: 100%; height: auto; display: block; user-select: none; -webkit-user-select: none; }
 .board-svg.interactive .hit { cursor: pointer; }
+.board-undo { cursor: pointer; outline: none; }
+.board-undo rect { fill: rgba(6, 8, 20, 0.88); transition: fill 120ms; }
+.board-undo:hover rect { fill: rgba(30, 34, 52, 0.94); }
+.board-undo:focus-visible rect { stroke: var(--pick); stroke-width: 2; }
+.board-undo svg { stroke: #fff; }
+.board-undo text { fill: #fff; }
 .board-label { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 0.8125rem; color: var(--text-2); margin: 6px 2px; }
 .board-label .who { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .board-label strong { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -592,7 +598,13 @@ dialog.modal[open] { display: flex; flex-direction: column; animation: dialog-in
 
 /* ---------- practice ---------- */
 .practice-shell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; --side-w: 20rem; }
+.side .answer-bar { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin: 0; padding: 16px; flex: none; }
+.side .answer-bar > .btn { justify-content: center; }
+.side .answer-bar .hint { font-size: 0.875rem; color: var(--text-2); line-height: 1.4; margin-bottom: 2px; }
+.side .answer-bar .feedback { align-items: flex-start; margin-bottom: 4px; }
+.answer-links { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .practice-shell.with-analysis { grid-template-columns: minmax(0, 1fr) var(--side-w); }
+@container main (max-width: 44rem) { .practice-shell.with-analysis { grid-template-columns: minmax(0, 1fr); } }
 .stage-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 10px; }
 .stage .stage-head .position-meta { margin: 0; }
 .stage-head .position-meta { align-items: center; }
@@ -605,20 +617,14 @@ dialog.modal[open] { display: flex; flex-direction: column; animation: dialog-in
 .streak.cold { color: var(--text-4); }
 .session-summary { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .options-panel { padding: 16px 18px; margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-.stage { padding: 18px 22px 0; overflow: hidden; }
+.stage { padding: 18px 22px; overflow: hidden; }
 .prompt { font-size: 1.5rem; font-weight: 650; letter-spacing: -0.02em; line-height: 1.25; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .prompt .die { width: 28px; height: 28px; }
 .stage .position-meta { margin: 10px 0 12px; }
 .stage-board { max-width: max(380px, calc((100vh - 410px) * 1.27)); margin: 0 auto; }
-.answer-bar {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  margin: 16px -22px 0; padding: 16px 22px; border-top: 1px solid var(--line);
-  transition: background-color 200ms var(--ease-out);
-}
-.answer-bar .spacer { flex: 1; }
-.answer-bar .hint { color: var(--text-3); font-size: 0.8125rem; }
-.answer-bar.right { background: var(--good-soft); border-top-color: transparent; }
-.answer-bar.wrong { background: var(--vbad-soft); border-top-color: transparent; }
+.answer-bar { transition: background-color 200ms var(--ease-out), border-color 200ms var(--ease-out); }
+.answer-bar.right { background: var(--good-soft); border-color: transparent; }
+.answer-bar.wrong { background: var(--vbad-soft); border-color: transparent; }
 .answer-bar.shown { background: var(--inset); }
 .feedback { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .feedback .mark { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; animation: pop 320ms var(--ease-out); }
@@ -730,8 +736,7 @@ dialog.modal[open] { display: flex; flex-direction: column; animation: dialog-in
   .match-row { grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr); padding: 12px 14px; }
   .stat { padding: 14px 16px; }
   .stat .value { font-size: 1.5rem; }
-  .answer-bar { margin: 16px -14px 0; padding: 14px; }
-  .stage { padding: 14px 14px 0; }
+  .stage { padding: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .btn:active { transform: none; }
@@ -1011,7 +1016,7 @@ dialog.deep-options { width: min(720px, calc(100vw - 32px)); }
 
   .fit .stage { max-height: 100%; overflow: hidden auto; }
   .fit .side { max-height: 100%; overflow-y: auto; margin: -2px; padding: 2px; }
-  .fit .stage-board { max-width: min(max(12rem, (100cqh - 7.6rem - 100px) * 1.2727), 100cqw - var(--side-w) - 64px); }
+  .fit .stage-board { max-width: min(max(12rem, (100cqh - 1.875rem - 50px) * 1.2727), 100cqw - var(--side-w) - 64px); }
   .fit .stage-head { flex-wrap: nowrap; }
   .fit .stage-head .prompt { flex: none; max-width: 55%; font-size: 1.25rem; }
   .fit .stage-head .position-meta { flex: 1 1 0; min-width: 0; justify-content: flex-end; }
@@ -1023,19 +1028,7 @@ dialog.deep-options { width: min(720px, calc(100vw - 32px)); }
   .fit .stage .position-meta > .chip:first-child { flex-shrink: 4; }
   .fit .stage .position-meta .tag-line { flex: none; flex-wrap: nowrap; }
   .fit .stage .position-meta .tag-chips { flex-wrap: nowrap; max-width: 14rem; overflow: hidden; }
-  .fit .answer-bar { flex-wrap: nowrap; }
-  .fit .answer-bar > * { flex: none; }
-  .fit .answer-bar > .spacer { flex: 1 1 0; }
-  .fit .answer-bar > .hint, .fit .answer-bar > .feedback { flex: 0 1 auto; min-width: 0; }
-  .fit .answer-bar > .hint, .fit .feedback h3, .fit .feedback p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fit .feedback > div { min-width: 0; }
-  @container fit (max-width: 54rem) {
-    .fit .answer-bar .kbd, .fit .answer-bar > .hint { display: none; }
-  }
-  @container fit (max-width: 50rem) {
-    .fit .answer-bar #reset { display: none; }
-    .fit .answer-bar #retry { width: 36px; padding: 0; gap: 0; font-size: 0; }
-  }
 
   @container main (min-width: 44rem) and (max-width: 66rem) {
     .fit .practice-shell { --side-w: 17rem; }

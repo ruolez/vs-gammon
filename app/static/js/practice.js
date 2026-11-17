@@ -69,8 +69,9 @@ function renderSummary() {
   $("summary").innerHTML = chips.map((c, i) => `<span class="chip">${i === 0 ? `<strong>${esc(c)}</strong>` : esc(c)}</span>`).join("");
 }
 
-function showSide(visible) {
+function showSide(visible, analysis = false) {
   $("side").hidden = !visible;
+  $("panel").hidden = !analysis;
   $("side").parentElement.classList.toggle("with-analysis", visible);
 }
 
@@ -126,8 +127,7 @@ function clearStage(prompt) {
   $("prompt").textContent = prompt;
   $("facts").innerHTML = "";
   $("bar").innerHTML = "";
-  $("bar").className = "answer-bar";
-  $("bar").hidden = true;
+  $("bar").className = "panel answer-bar";
 }
 
 function showEmpty() {
@@ -187,12 +187,12 @@ async function showPosition() {
   const saved = state.results[state.index];
   Tags.closePicker();
   Object.assign(state, { d: decision, phase: "answer", result: null, candidate: null, hover: null, selected: null, history: [] });
-  $("bar").hidden = false;
   renderContext();
   renderProgress();
   if (decision.kind === "checker") {
     if (!decision.legal) {
       $("board").innerHTML = `<div class="empty">${icon("alert")}<strong>${t("Move list missing")}</strong><p>${t("This position was analysed before practice existed. Re-analyse its match on the Matches page.")}</p></div>`;
+      showSide(false);
       return;
     }
     state.start = Board.onrollFrame(decision);
@@ -225,22 +225,17 @@ function diceState() {
 function renderAnswerPhase() {
   const d = state.d;
   const bar = $("bar");
-  bar.className = "answer-bar";
+  bar.className = "panel answer-bar";
   if (d.kind === "checker") {
     const opts = options();
     const selectable = new Set(opts.map((o) => o.from));
     const targets = new Set(state.selected === null ? [] : opts.filter((o) => o.from === state.selected).map((o) => o.to));
-    Board.renderWithLabels($("board"), d, { frame: state.frame, dice: diceState(), interactive: { selectable, targets, selected: state.selected } });
+    $("board").innerHTML = Board.render(d, { frame: state.frame, dice: diceState(), interactive: { selectable, targets, selected: state.selected, undo: state.history.length > 0 } });
     const complete = moveComplete();
     bar.innerHTML = `
-      <button class="btn secondary" id="undo" ${state.history.length ? "" : "disabled"}>${icon("undo")}${t("Undo")} <span class="kbd">⌫</span></button>
-      <button class="btn ghost" id="reset" ${state.history.length ? "" : "disabled"}>${t("Reset")}</button>
       <span class="hint">${complete ? t("Move complete. Check it, or undo to change it.") : state.selected !== null ? t("Click a green point to move there.") : t("Click a checker to move it.")}</span>
-      <span class="spacer"></span>
-      <button class="btn ghost" id="reveal" title="${t("Counts as a miss, so the position comes back later")}">${icon("eye")}${t("Show answer")}</button>
-      <button class="btn lg" id="submit" ${complete ? "" : "disabled"}>${t("Check")} <span class="kbd">↵</span></button>`;
-    $("undo").addEventListener("click", undo);
-    $("reset").addEventListener("click", reset);
+      <button class="btn lg" id="submit" ${complete ? "" : "disabled"}>${t("Check")} <span class="kbd">↵</span></button>
+      <button class="btn ghost" id="reveal" title="${t("Counts as a miss, so the position comes back later")}">${icon("eye")}${t("Show answer")}</button>`;
     $("submit").addEventListener("click", submitChecker);
     if (state.keyboard) {
       const next = complete ? $("submit") : $("board").querySelector(state.selected !== null ? '.hit[tabindex="0"]:not([data-point="' + state.selected + '"])' : '.hit[tabindex="0"]');
@@ -248,17 +243,16 @@ function renderAnswerPhase() {
     }
   } else {
     const take = d.kind === "take";
-    Board.renderWithLabels($("board"), d, { bottom: d.player, cubeOffered: take });
+    $("board").innerHTML = Board.render(d, { bottom: d.player, cubeOffered: take });
     const [a, b] = take ? [["take", t("Take"), "T"], ["pass", t("Pass"), "P"]] : [["no_double", t("No double"), "N"], ["double", t("Double"), "D"]];
     bar.innerHTML = `
       <button class="btn lg secondary" data-action="${a[0]}">${a[1]} <span class="kbd">${a[2]}</span></button>
       <button class="btn lg secondary" data-action="${b[0]}">${b[1]} <span class="kbd">${b[2]}</span></button>
-      <span class="spacer"></span>
       <button class="btn ghost" id="reveal" title="${t("Counts as a miss, so the position comes back later")}">${icon("eye")}${t("Show answer")}</button>`;
     bar.querySelectorAll("[data-action]").forEach((el) => el.addEventListener("click", () => submitCube(el.dataset.action)));
   }
   $("reveal").addEventListener("click", reveal);
-  showSide(false);
+  showSide(true);
 }
 
 function applyOption(option) {
@@ -274,6 +268,7 @@ const smallestDie = (choices) => choices.reduce((a, b) => (b.die < a.die ? b : a
 
 function onBoardClick(ev) {
   state.keyboard = false;
+  if (ev.target.closest("[data-undo]")) return undo();
   const hit = ev.target.closest("[data-point]");
   if (hit) activatePoint(Number(hit.dataset.point));
 }
@@ -423,7 +418,7 @@ function drawResultBoard() {
   const d = state.d;
   const nav = { prev: state.index > 0, next: true };
   if (d.kind !== "checker") {
-    Board.renderWithLabels($("board"), d, { bottom: d.player, cubeOffered: d.kind === "take", nav });
+    $("board").innerHTML = Board.render(d, { bottom: d.player, cubeOffered: d.kind === "take", nav });
     return;
   }
   const r = state.result;
@@ -441,7 +436,7 @@ function drawResultBoard() {
     const yoursIsBest = !r.revealed && sameSteps(r.yourSteps, best.steps);
     if (!r.revealed && !yoursIsBest && !sameSteps(r.yourSteps, played.steps)) arrows.push({ kind: kinds.yours, steps: r.yourSteps });
   }
-  Board.renderWithLabels($("board"), d, { frame: state.start, arrows, arrowStart: state.start, nav });
+  $("board").innerHTML = Board.render(d, { frame: state.start, arrows, arrowStart: state.start, nav });
 }
 
 function renderResult() {
@@ -453,17 +448,17 @@ function renderResult() {
   const last = state.index + 1 >= state.queue.length;
   const tone = r.revealed ? "shown" : r.correct ? "right" : "wrong";
   const bar = $("bar");
-  bar.className = `answer-bar ${tone}`;
-  bar.innerHTML = `${feedbackHtml()}<span class="spacer"></span>
-    ${d.kind === "checker" && !r.correct ? `<button class="btn ghost" id="retry" title="${t("Try again")}">${icon("reset")}${t("Try again")}</button>` : ""}
-    <a class="btn ghost" href="/moves?match=${d.match_id}&focus=${d.id}&min_error=all">${t("Open in Moves")}</a>
-    <button class="btn lg ${tone === "right" ? "go" : tone === "wrong" ? "stop" : ""}" id="next">${last ? t("Finish") : t("Continue")} <span class="kbd">↵</span></button>`;
+  bar.className = `panel answer-bar ${tone}`;
+  bar.innerHTML = `${feedbackHtml()}
+    <button class="btn lg ${tone === "right" ? "go" : tone === "wrong" ? "stop" : ""}" id="next">${last ? t("Finish") : t("Continue")} <span class="kbd">↵</span></button>
+    <div class="answer-links">${d.kind === "checker" && !r.correct ? `<button class="btn ghost" id="retry">${icon("reset")}${t("Try again")}</button>` : ""}
+    <a class="btn ghost" href="/moves?match=${d.match_id}&focus=${d.id}&min_error=all">${t("Open in Moves")}</a></div>`;
   const said = bar.querySelector(".feedback p");
   if (said) said.title = said.textContent;
   if ($("retry")) $("retry").addEventListener("click", retry);
   $("next").addEventListener("click", next);
   $("panel").innerHTML = d.kind === "checker" ? checkerAnalysis() : cubeAnalysis();
-  showSide(true);
+  showSide(true, true);
   $("panel").querySelectorAll("[data-cand]").forEach((el) => el.addEventListener("click", () => {
     const i = Number(el.dataset.cand);
     state.candidate = state.candidate === i ? null : i;
@@ -501,6 +496,12 @@ function onKey(ev) {
   }
   const key = ev.key.toLowerCase();
   if (key === "tab") state.keyboard = true;
+  if ((key === "enter" || key === " ") && document.activeElement.closest && document.activeElement.closest("[data-undo]")) {
+    ev.preventDefault();
+    state.keyboard = true;
+    undo();
+    return;
+  }
   const focused = document.activeElement.closest && document.activeElement.closest("[data-point]");
   if (focused && (key === "enter" || key === " ")) {
     ev.preventDefault();

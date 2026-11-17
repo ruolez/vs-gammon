@@ -82,7 +82,8 @@ const Board = (() => {
     return svg;
   }
 
-  function die(x, y, value, size, used) {
+  function die(x, y, value, size, used, owner) {
+    const n = owner === 2 ? 2 : 1;
     const pip = size / 10.5;
     const spots = {
       1: [[0.5, 0.5]], 2: [[0.27, 0.27], [0.73, 0.73]], 3: [[0.26, 0.26], [0.5, 0.5], [0.74, 0.74]],
@@ -90,20 +91,23 @@ const Board = (() => {
       5: [[0.26, 0.26], [0.74, 0.26], [0.5, 0.5], [0.26, 0.74], [0.74, 0.74]],
       6: [[0.28, 0.24], [0.72, 0.24], [0.28, 0.5], [0.72, 0.5], [0.28, 0.76], [0.72, 0.76]],
     }[value] || [];
-    let svg = `<g opacity="${1 - 0.72 * Number(used)}"><rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${size * 0.18}" style="fill:var(--die);stroke:var(--die-edge)"/>`;
-    spots.forEach(([sx, sy]) => (svg += `<circle cx="${x + sx * size}" cy="${y + sy * size}" r="${pip}" style="fill:var(--die-pip)"/>`));
+    let svg = `<g opacity="${1 - 0.72 * Number(used)}"><rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${size * 0.18}" style="fill:var(--checker-${n});stroke:var(--checker-${n}-edge)"/>`;
+    spots.forEach(([sx, sy]) => (svg += `<circle cx="${x + sx * size}" cy="${y + sy * size}" r="${pip}" style="fill:var(--checker-${n}-text)"/>`));
     return svg + "</g>";
   }
 
-  function diceOnBoard(rolled) {
+  const halfCentre = (side) => (side === "left" ? FRAME : BAR_X + BAR) + 3 * POINT_W;
+  const diceSide = (owner) => (owner === 2 ? "left" : "right");
+
+  function diceOnBoard(rolled, owner) {
     const usedSteps = rolled.filter((d) => d.used).length;
     const dice = rolled.length === 4 ? [0, 1].map((i) => ({ value: rolled[0].value, used: Math.min(2, Math.max(0, usedSteps - 2 * i)) / 2 })) : rolled;
     const size = 38;
     const gap = 8;
     const total = dice.length * size + (dice.length - 1) * gap;
-    let x = BAR_X + BAR + 3 * POINT_W - total / 2;
+    let x = halfCentre(diceSide(owner)) - total / 2;
     return dice.map((d) => {
-      const s = die(x, H / 2 - size / 2, d.value, size, d.used);
+      const s = die(x, H / 2 - size / 2, d.value, size, d.used, owner);
       x += size + gap;
       return s;
     }).join("");
@@ -212,6 +216,18 @@ const Board = (() => {
     return (prev ? area(FRAME, -1, t("Previous position (←)")) : "") + (next ? area(BAR_X + BAR, 1, t("Next position (→)")) : "");
   }
 
+  function undoButton(side) {
+    const label = t("Undo");
+    const w = 46 + label.length * 7.4;
+    const h = 28;
+    const x = halfCentre(side) - w / 2;
+    const y = H / 2 - h / 2;
+    return `<g class="board-undo" data-undo tabindex="0" role="button" aria-label="${label} (⌫)"><title>${label} (⌫)</title>` +
+      `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${h / 2}"/>` +
+      `<svg x="${x + 13}" y="${y + 7}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${ICONS.undo}</svg>` +
+      `<text x="${x + 32}" y="${H / 2 + 4.6}" font-size="13" font-weight="600" font-family="Inter, sans-serif">${label}</text></g>`;
+  }
+
   function render(d, opts = {}) {
     const bottomPlayer = opts.bottom || d.on_roll;
     const topPlayer = bottomPlayer === 1 ? 2 : 1;
@@ -265,8 +281,8 @@ const Board = (() => {
 
     if (!d.crawford_game && !mini) svg += cubeSvg({ value: d.cube_value, owner: d.cube_owner, offered: !!opts.cubeOffered }, bottomPlayer);
     if (!mini) {
-      if (opts.dice) svg += diceOnBoard(opts.dice);
-      else if (d.kind === "checker" && d.dice) svg += diceOnBoard(d.dice.map((v) => ({ value: v, used: false })));
+      if (opts.dice) svg += diceOnBoard(opts.dice, d.on_roll);
+      else if (d.kind === "checker" && d.dice) svg += diceOnBoard(d.dice.map((v) => ({ value: v, used: false })), d.on_roll);
     }
     if (opts.arrows && !flipped) {
       const start = opts.arrowStart || onrollFrame(d);
@@ -274,6 +290,7 @@ const Board = (() => {
     }
     if (!mini) svg += pipCounts(pips(frame));
     if (interactive) svg += hitAreas(interactive);
+    if (interactive && interactive.undo) svg += undoButton(diceSide(d.on_roll) === "left" ? "right" : "left");
     if (opts.nav) svg += navAreas(opts.nav);
     return svg + "</svg>";
   }
