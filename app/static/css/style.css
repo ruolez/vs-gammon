@@ -589,9 +589,20 @@ dialog.modal[open] { display: flex; flex-direction: column; animation: dialog-in
 .cell-sub.duplicate { color: var(--bad); font-weight: 600; }
 .xgid { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 5px 5px 5px 12px; border-radius: var(--radius-m); background: var(--inset); }
 .xgid code { flex: 1; font-size: 0.7188rem; color: var(--text-3); overflow-x: auto; white-space: nowrap; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
-.analysis section { padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.analysis section { padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .analysis section:last-child { border-bottom: 0; }
 .analysis h3 { font-size: 0.8125rem; font-weight: 600; margin-bottom: 10px; color: var(--text-2); }
+.an-foot { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 10px 14px 12px; border-top: 1px solid var(--line); }
+.an-foot .deep-actions { gap: 6px; }
+.analysis .cands td { padding: 5px 6px; }
+.analysis .cands th { padding: 4px 6px; }
+.probs-compact { display: flex; flex-direction: column; gap: 4px; }
+.probs-caption { font-size: 0.75rem; font-weight: 600; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.probs-row { display: flex; align-items: center; gap: 8px; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.probs-row strong { flex: none; font-weight: 650; }
+.probs-row .probbar { flex: 1 1 auto; height: 6px; margin: 0; }
+.probs-compact .prob-legend { font-size: 0.6875rem; white-space: nowrap; }
+.probs-compact abbr { text-decoration: none; }
 .verdict-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .verdict-line .big { font-size: 1.625rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 
@@ -910,7 +921,6 @@ dialog.confirm footer { border-top: 0; justify-content: flex-end; }
 .position-title .tag-line { flex: none; margin: 0; flex-wrap: nowrap; }
 .position-title .tag-chips { flex-wrap: nowrap; max-width: 12rem; overflow: hidden; }
 .position-title #copy-xgid { flex: none; }
-.deep-section:has(.deep-bar:empty) { display: none; }
 .deep-actions.open [data-eval] { display: none; }
 .xgid { padding: 9px 12px; }
 .deep-bar:empty { display: none; }
@@ -994,9 +1004,9 @@ dialog.deep-options { width: min(720px, calc(100vw - 32px)); }
   .fit .toolbar .field select, .fit .toolbar .dropdown-btn { min-width: 0; }
   .fit .position-facts { flex: 1 1 0; }
   .fit .review, .fit .practice-shell { flex: 1 1 0; min-height: 22rem; container: fit / size; grid-template-rows: minmax(0, 1fr); }
-  .fit .list-body, .fit .review .analysis, .fit .stage, .fit .side { overscroll-behavior: contain; }
+  .fit .list-body, .fit .an-body, .fit .stage, .fit .side { overscroll-behavior: contain; }
 
-  .fit .review { align-items: stretch; grid-template-columns: 18.75rem minmax(0, 1fr); grid-template-rows: minmax(0, 3fr) minmax(0, 2fr); }
+  .fit .review { align-items: stretch; grid-template-columns: 18.75rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
   .fit .review .list { grid-column: 1; grid-row: 1; }
   .fit .review .board-panel { grid-column: 2; grid-row: 1 / span 2; }
   .fit .review .analysis-col { grid-column: 1; grid-row: 2; }
@@ -1004,7 +1014,8 @@ dialog.deep-options { width: min(720px, calc(100vw - 32px)); }
   .fit .review .board-panel { display: flex; flex-direction: column; min-height: 0; padding-top: 12px; padding-bottom: 0; overflow: hidden; }
   .fit .review .board-panel > .empty { flex: 1; }
   .fit .review .board-nav { width: 100%; max-width: max(12rem, (100cqh - 4.25rem) * 1.2727); }
-  .fit .review .analysis { min-height: 0; overflow-y: auto; }
+  .fit .review .analysis { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .fit .an-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
   .fit .position-title { flex-wrap: nowrap; min-height: 1.75rem; }
   .fit .position-title h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fit .position-title > :not(h2, .position-facts) { flex: none; }
@@ -1045,9 +1056,9 @@ dialog.deep-options { width: min(720px, calc(100vw - 32px)); }
     .fit .review .board-nav { max-width: max(360px, calc((100vh - 270px) * 1.27)); }
   }
 }
-.deep-section .deep-actions, .fit .deep-section .deep-actions, .deep-section .deep-rollout { flex-wrap: wrap; }
-.deep-section .deep-rollout { padding-left: 0; border-left: 0; max-width: 100%; }
-.deep-section .deep-label { display: none; }
+.an-foot .deep-actions, .fit .an-foot .deep-actions, .an-foot .deep-rollout { flex-wrap: wrap; }
+.an-foot .deep-rollout { padding-left: 0; border-left: 0; max-width: 100%; }
+.an-foot .deep-label { display: none; }
 
 /* ---------- play online: the game site fills the page under an address bar ---------- */
 html:has(body.play-page), body.play-page { overflow: hidden; overscroll-behavior: none; }

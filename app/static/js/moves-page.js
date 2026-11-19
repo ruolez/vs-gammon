@@ -307,72 +307,78 @@ function probsBlock(probs, who) {
   if (!probs) return "";
   const [win, wg, wbg, lg, lbg] = probs;
   const pct = (x) => `${(x * 100).toFixed(1)}%`;
-  return `<section><h3>${t("Winning chances for {name}", { name: esc(who) })}</h3>
-    <div class="probbar"><span class="w" style="width:${win * 100}%"></span></div>
-    <div class="prob-legend"><span>${t("Win")} <strong>${pct(win)}</strong> · ${t("gammon")} ${pct(wg)} · ${t("bg")} ${pct(wbg)}</span><span>${t("Lose")} <strong>${pct(1 - win)}</strong> · ${t("gammon")} ${pct(lg)}</span></div></section>`;
+  return `<div class="probs-compact" title="${t("Winning chances for {name}", { name: esc(who) })}">
+    <div class="probs-caption">${t("Winning chances for {name}", { name: esc(who) })}</div>
+    <div class="probs-row"><strong>${pct(win)}</strong><div class="probbar"><span class="w" style="width:${win * 100}%"></span></div><strong>${pct(1 - win)}</strong></div>
+    <div class="prob-legend">${[[wg, wbg], [lg, lbg]].map(([g, bg]) => `<span><abbr title="${t("gammon")}">${t("G")}</abbr> ${pct(g)} · <abbr title="${t("backgammon")}">${t("B")}</abbr> ${pct(bg)}</span>`).join("")}</div></div>`;
 }
 
-function verdict(d) {
-  const cost = t("It cost {error} equity, about {pct}% in winning chances.", { error: d.error.toFixed(3), pct: (d.error * 50).toFixed(1) });
-  const text = d.error <= 0.0005 ? t("This was the engine's choice.") : `${d.class ? severityPhrase(d) : d.kind === "checker" ? t("Close") : t("Also right")}. ${cost}`;
-  return `<section><div class="verdict-line"><h3>${term(t("Equity lost"), t("Equity is your expected result from a position. A mistake loses equity; 0.1 is roughly 5% in winning chances."))}</h3><span class="big ${d.class ? "trend-bad" : "trend-good"}">${formatLoss(d.error)}</span></div><p class="small muted note-tight">${text}</p></section>`;
+function depthKey(c) {
+  return c.rollout ? "rollout" : String(c.plies ?? "");
 }
 
-function deepSection() {
-  return `<section class="deep-section"><h3>${t("Analyse deeper")}</h3><div class="deep-bar" id="deep-bar"></div></section>`;
+function candidatesSection(d) {
+  const best = bestCandidate(d);
+  const byEquity = d.candidates.map((_, i) => i).sort((a, b) => d.candidates[b].equity - d.candidates[a].equity);
+  const top = d.candidates[d.played_index].equity >= best.equity ? d.played_index : d.candidates.indexOf(best);
+  const order = [top, d.played_index, ...byEquity].filter((i, n, all) => all.indexOf(i) === n);
+  const mixedDepths = new Set(d.candidates.map(depthKey)).size > 1;
+  const rows = order.map((i) => {
+    const c = d.candidates[i];
+    return `<tr data-cand="${i}" class="${state.candidate === i ? "selected" : ""}">
+      <td class="rank">${byEquity.indexOf(i) + 1}</td>
+      <td class="mv">${esc(c.move)}${i === d.played_index ? `<span class="tag game">${t("played")}</span>` : ""}${mixedDepths ? sourceTag(c) : ""}</td>
+      <td class="num">${formatEquity(c.equity)}${plusMinus(c.rollout && c.rollout.std)}</td><td class="num diff">${c === best ? "" : (c.equity - best.equity).toFixed(3)}</td></tr>`;
+  }).join("");
+  const forced = d.forced ? `<p class="small muted note-tight">${t("Forced: only one legal play.")}</p>` : "";
+  return `<section><h3>${t("Candidate moves")}</h3><table class="cands" title="${t("Point at a move to see it on the board. Click to keep it.")}"><thead><tr><th></th><th>${t("Move")}</th><th class="num">${t("Equity")}</th><th class="num">${t("Diff")}</th></tr></thead><tbody>${rows}</tbody></table>${forced}</section>`;
+}
+
+function cubeSection(d) {
+  const c = d.cube;
+  const optimal = Math.max(c.nd, Math.min(c.dt, c.dp));
+  const options = Cube.cubeOptions(d.kind, c, state.thresholds.doubtful);
+  const right = new Set(options.filter((o) => o.right).map((o) => o.row));
+  const rightText = [d.best, ...Cube.otherRightActions(options, d.best)].map((a) => `<strong>${esc(t(a))}</strong>`).join(` ${t("or")} `);
+  const chosen = (label) => (d.kind === "cube" && ((label === "No double" && d.action === "No double") || (label === "Double, take" && d.action === "Double")))
+    || (d.kind === "take" && ((label === "Double, take" && d.action === "Take") || (label === "Double, pass" && d.action === "Pass")));
+  const source = c.rollout ? `<p class="small muted note-tight">${t("Rolled out: {games}", { games: plural(c.rollout.trials, "game") })}</p>`
+    : c.plies !== undefined && c.plies !== null ? `<p class="small muted note-tight">${t("Evaluated at {n}-ply", { n: c.plies })}</p>` : "";
+  const stds = c.rollout ? { "No double": c.rollout.nd_std, "Double, take": c.rollout.dt_std } : {};
+  return `<section><h3>${t("Cube equities for {name}", { name: esc(playerName(d, d.on_roll)) })}</h3>${source}<div class="cube-rows">${
+    [["No double", c.nd], ["Double, take", c.dt], ["Double, pass", c.dp]].map(([label, eq]) => `
+      <div class="cube-row ${right.has(label) ? "best" : ""}"><span>${t(label)}${chosen(label) ? `<span class="tag game">${t("played")}</span>` : ""}${right.has(label) ? `<span class="tag best">${t("best")}</span>` : ""}</span>
+      <span class="eq">${formatEquity(eq)}${plusMinus(stds[label])}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("")
+  }</div><p class="small muted-note">${t("Right action")}: ${rightText}</p></section>`;
+}
+
+function shownProbs(d) {
+  return d.kind === "checker" ? (d.candidates[state.hover ?? state.candidate ?? d.played_index] || {}).probs : d.cube.probs;
 }
 
 function renderAnalysis(d) {
-  let body = verdict(d);
-  if (d.kind === "checker") {
-    const best = bestCandidate(d);
-    const byEquity = d.candidates.map((_, i) => i).sort((a, b) => d.candidates[b].equity - d.candidates[a].equity);
-    const top = d.candidates[d.played_index].equity >= best.equity ? d.played_index : d.candidates.indexOf(best);
-    const order = [top, d.played_index, ...byEquity].filter((i, n, all) => all.indexOf(i) === n);
-    body += `<section><h3>${t("Candidate moves")}</h3><table class="cands"><thead><tr><th></th><th>${t("Move")}</th><th class="num">${t("Equity")}</th><th class="num">${t("Diff")}</th></tr></thead><tbody>${
-      order.map((i) => [d.candidates[i], i]).map(([c, i]) => `<tr data-cand="${i}" class="${state.candidate === i ? "selected" : ""}">
-        <td class="rank">${byEquity.indexOf(i) + 1}</td>
-        <td class="mv">${esc(c.move)}${c === best ? `<span class="tag best">${t("best")}</span>` : ""}${i === d.played_index ? `<span class="tag game">${t("played")}</span>` : ""}${sourceTag(c)}</td>
-        <td class="num">${formatEquity(c.equity)}${plusMinus(c.rollout && c.rollout.std)}</td><td class="num diff">${c === best ? "" : (c.equity - best.equity).toFixed(3)}</td></tr>`).join("")
-    }</tbody></table><p class="small muted muted-note">${t("Point at a move to see it on the board. Click to keep it.")}</p></section>`;
-    body += deepSection();
-    body += `<div id="probs">${probsBlock((d.candidates[state.hover ?? state.candidate ?? d.played_index] || {}).probs, playerName(d, d.on_roll))}</div>`;
-    if (d.forced) body += `<section><p class="small muted">${t("Forced: only one legal play.")}</p></section>`;
-  } else {
-    const c = d.cube;
-    const optimal = Math.max(c.nd, Math.min(c.dt, c.dp));
-    const options = Cube.cubeOptions(d.kind, c, state.thresholds.doubtful);
-    const right = new Set(options.filter((o) => o.right).map((o) => o.row));
-    const rightText = [d.best, ...Cube.otherRightActions(options, d.best)].map((a) => `<strong>${esc(t(a))}</strong>`).join(` ${t("or")} `);
-    const chosen = (label) => (d.kind === "cube" && ((label === "No double" && d.action === "No double") || (label === "Double, take" && d.action === "Double")))
-      || (d.kind === "take" && ((label === "Double, take" && d.action === "Take") || (label === "Double, pass" && d.action === "Pass")));
-    const source = c.rollout ? `<p class="small muted note-tight">${t("Rolled out: {games}", { games: plural(c.rollout.trials, "game") })}</p>`
-      : c.plies !== undefined && c.plies !== null ? `<p class="small muted note-tight">${t("Evaluated at {n}-ply", { n: c.plies })}</p>` : "";
-    const stds = c.rollout ? { "No double": c.rollout.nd_std, "Double, take": c.rollout.dt_std } : {};
-    body += `<section><h3>${t("Cube equities for {name}", { name: esc(playerName(d, d.on_roll)) })}</h3>${source}<div class="cube-rows">${
-      [["No double", c.nd], ["Double, take", c.dt], ["Double, pass", c.dp]].map(([label, eq]) => `
-        <div class="cube-row ${right.has(label) ? "best" : ""}"><span>${t(label)}${chosen(label) ? `<span class="tag game">${t("played")}</span>` : ""}${right.has(label) ? `<span class="tag best">${t("best")}</span>` : ""}</span>
-        <span class="eq">${formatEquity(eq)}${plusMinus(stds[label])}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("")
-    }</div><p class="small muted-note">${t("Right action")}: ${rightText}</p></section>`;
-    body += deepSection();
-    body += probsBlock(c.probs, playerName(d, d.on_roll));
-  }
-  const samePosition = $("analysis").dataset.shown === String(d.id);
-  $("analysis").innerHTML = body + copiesSection(d);
+  const previous = $("analysis").querySelector(".an-body");
+  const keepScroll = previous && $("analysis").dataset.shown === String(d.id) ? previous.scrollTop : 0;
+  $("analysis").innerHTML = `<div class="an-body">${d.kind === "checker" ? candidatesSection(d) : cubeSection(d)}${copiesSection(d)}</div>
+    <div class="an-foot"><div class="deep-bar" id="deep-bar"></div><div id="probs">${probsBlock(shownProbs(d), playerName(d, d.on_roll))}</div></div>`;
   $("analysis").dataset.shown = d.id;
-  if (!samePosition) $("analysis").scrollTop = 0;
+  $("analysis").querySelector(".an-body").scrollTop = keepScroll;
   bindCopies();
   Deep.mount($("deep-bar"), d, deeperResult);
+  const showCandidate = () => {
+    drawBoard(d);
+    $("probs").innerHTML = probsBlock(shownProbs(d), playerName(d, d.on_roll));
+  };
   $("analysis").querySelectorAll("[data-cand]").forEach((el) => el.addEventListener("click", () => {
     const i = Number(el.dataset.cand);
     state.candidate = state.candidate === i ? null : i;
-    renderDetail(d);
+    $("analysis").querySelectorAll("[data-cand]").forEach((row) => row.classList.toggle("selected", Number(row.dataset.cand) === state.candidate));
+    showCandidate();
   }));
   const preview = (i) => {
     if (state.hover === i) return;
     state.hover = i;
-    drawBoard(d);
-    $("probs").innerHTML = probsBlock((d.candidates[i ?? state.candidate ?? d.played_index] || {}).probs, playerName(d, d.on_roll));
+    showCandidate();
   };
   $("analysis").querySelectorAll("[data-cand]").forEach((el) => el.addEventListener("mouseenter", () => preview(Number(el.dataset.cand))));
   $("analysis").querySelector(".cands tbody")?.addEventListener("mouseleave", () => preview(null));
