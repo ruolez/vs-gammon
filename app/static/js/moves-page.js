@@ -228,10 +228,21 @@ function bestCandidate(d) {
   return d.candidates.reduce((b, c) => (c.equity > b.equity ? c : b), d.candidates[0]);
 }
 
+function matchScore(d) {
+  if (!d.match_length) return "";
+  const bottom = d.kind === "checker" ? d.on_roll : d.player;
+  const box = (p) => {
+    const score = p === 1 ? d.score1 : d.score2;
+    return `<span class="score-box p${p}" title="${esc(playerName(d, p))}: ${score}">${score}</span>`;
+  };
+  const middle = d.crawford_game ? `<abbr title="${t("Crawford game")}">${t("CR")}</abbr>` : t("to {n}", { n: d.match_length });
+  return `<div class="match-score" aria-label="${t("{a}–{b} to {n}", { a: d.score1, b: d.score2, n: d.match_length })}">${box(bottom === 1 ? 2 : 1)}<span class="score-len">${middle}</span>${box(bottom)}</div>`;
+}
+
 function renderBoardPanel(d) {
   $("board-panel").innerHTML = `
     <div class="position-title"><div class="tag-line" id="tag-line"></div><button class="btn sm secondary" id="copy-xgid" title="${esc(d.xgid)}">${icon("copy")}${t("Copy XGID")}</button><span class="position-facts small muted">${esc(d.player1)} ${t("vs")} ${esc(d.player2)} · ${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })} · ${d.match_length ? t("{a}–{b} to {n}", { a: d.score1, b: d.score2, n: d.match_length }) : t("money")} · ${cubeText(d)}</span></div>
-    <div class="board-nav solo"><div id="board"></div></div>`;
+    <div class="board-nav solo${d.match_length ? " scored" : ""}">${matchScore(d)}<div id="board"></div></div>`;
   drawBoard(d);
   renderTagLine(d);
   $("copy-xgid").addEventListener("click", async () => {
