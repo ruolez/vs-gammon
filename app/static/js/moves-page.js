@@ -331,7 +331,7 @@ function candidatesSection(d) {
       <td class="num">${formatEquity(c.equity)}${plusMinus(c.rollout && c.rollout.std)}</td><td class="num diff">${c === best ? "" : (c.equity - best.equity).toFixed(3)}</td></tr>`;
   }).join("");
   const forced = d.forced ? `<p class="small muted note-tight">${t("Forced: only one legal play.")}</p>` : "";
-  return `<section><h3>${t("Candidate moves")}</h3><table class="cands" title="${t("Point at a move to see it on the board. Click to keep it.")}"><thead><tr><th></th><th>${t("Move")}</th><th class="num">${t("Equity")}</th><th class="num">${t("Diff")}</th></tr></thead><tbody>${rows}</tbody></table>${forced}</section>`;
+  return `<section><h3>${t("Analysis")}</h3><table class="cands" title="${t("Point at a move to see it on the board. Click to keep it.")}"><thead><tr><th></th><th>${t("Move")}</th><th class="num">${t("Equity")}</th><th class="num">${t("Diff")}</th></tr></thead><tbody>${rows}</tbody></table>${forced}</section>`;
 }
 
 function cubeSection(d) {
