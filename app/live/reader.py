@@ -102,11 +102,14 @@ class Board:
         rough.sort()
         felt_at = mask.load()
         profile = mask.crop((rough[0][0], 0, rough[0][1] + 1, h)).resize((1, h), Image.BOX).tobytes()
-        felt_rows = [y for y, v in enumerate(profile) if v > 255 * 0.02]
-        if not felt_rows:
+        # The board is the longest unbroken run of rows with felt: page elements above or below it can share the
+        # felt's colour (the game page's rating bar does) and must not pull the middle away from the board's.
+        board_rows = max(_runs(profile, 255 * 0.02), key=lambda r: r[1] - r[0], default=None)
+        if not board_rows:
             return False
-        mid = (felt_rows[0] + felt_rows[-1]) // 2
-        span = max(4, (felt_rows[-1] - felt_rows[0]) // 12)
+        felt_rows = range(board_rows[0], board_rows[1] + 1)
+        mid = (board_rows[0] + board_rows[1]) // 2
+        span = max(4, (board_rows[1] - board_rows[0]) // 12)
         edges = {}
         for y in range(max(0, mid - span), min(h, mid + span + 1), 2):
             runs = [r for r in _runs([felt_at[x, y] for x in range(w)], 0) if r[1] - r[0] > w * 0.03]

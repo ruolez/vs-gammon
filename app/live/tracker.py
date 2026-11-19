@@ -69,6 +69,7 @@ class Tracker:
         self.handled_key = None
         self.dice = {}
         self.dice_order = []
+        self.unexplained = 0
 
     def _key(self, reading):
         dice = reading.get("dice")
@@ -127,6 +128,8 @@ class Tracker:
             self.frame = move.pop("after")
             self.dice.pop(move["player"], None)
             actions.append(move)
+        else:
+            self.unexplained += 1
         return actions
 
     def _amend(self, reading):
@@ -164,11 +167,23 @@ class Tracker:
         return actions
 
     def _find_move(self, reading):
+        """The play that turns the position into the reading. While a side's dice are still on screen only those dice
+        count (a half-played move must not pass for another roll's whole play); once they are gone or replaced the
+        move is over, and a roll the screen didn't show counts too, so a misread die never stops the game being
+        followed. A play with the dice seen wins, then one by the side that had dice."""
+        shown = reading.get("dice")
         fitting = []
         for player in (1, 2):
             onroll = self.frame if player == 1 else flip_frame(self.frame)
             known = self.dice.get(player)
-            rolls = [known] if known else ROLLS
+            still_shown = bool(known and shown and PLAYER[shown["side"]] == player
+                               and sorted(shown["values"]) == sorted(known))
+            if not known:
+                rolls = ROLLS
+            elif still_shown:
+                rolls = [known]
+            else:
+                rolls = [known] + [r for r in ROLLS if r != tuple(sorted(known))]
             for roll in rolls:
                 for end, steps in final_positions(onroll, roll).items():
                     after = list(end) if player == 1 else flip_frame(list(end))
@@ -176,5 +191,11 @@ class Tracker:
                         fitting.append({"player": player, "kind": "move", "dice": tuple(roll), "steps": steps, "after": after})
         if not fitting:
             return None
-        with_dice = [m for m in fitting if self.dice.get(m["player"])]
-        return (with_dice or fitting)[0]
+
+        def rank(move):
+            known = self.dice.get(move["player"])
+            if not known:
+                return 2
+            return 0 if sorted(known) == sorted(move["dice"]) else 1
+
+        return min(fitting, key=rank)

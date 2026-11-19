@@ -16,6 +16,7 @@ from app.engine.runner import gnubg_version
 from app.export import build_export_zip
 from app.importer import (MAX_UPLOAD_BYTES, describe, fill_missing_keys, import_match_bytes, remove_duplicates,
                           upload_path)
+from app.live.diagnostics import keep_unexplained
 from app.live.engine import LiveEngine
 from app.live.reader import read_board
 from app.live.replay import screens as replay_screens
@@ -618,7 +619,13 @@ def create_app(config=None):
         except (OSError, Image.DecompressionBombError) as exc:
             raise ValueError("that is not an image") from exc
         reading = read_board(image, dict(session.checker_colours))
+        unexplained = session.tracker.unexplained
         session.feed(reading)
+        if session.tracker.unexplained != unexplained:
+            try:
+                keep_unexplained(data_dir, image, reading)
+            except OSError:
+                pass
         return jsonify(found=reading["found"], why=reading.get("why"), geometry=reading.get("geometry"),
                        version=session.version)
 

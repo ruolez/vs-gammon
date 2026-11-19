@@ -61,6 +61,13 @@ class ReadBoard(unittest.TestCase):
         actions = watch(Tracker(), readings)
         self.assertEqual(played(actions), [[as_play(a) for a in games[0]["actions"] if a["kind"] == "move"]])
 
+    def test_a_busy_middle_and_deep_stacks_by_the_bar_keep_the_fields_in_place(self):
+        """The game page from a real match: buttons and a watermark across the middle, five-checker stacks on both
+        points next to the bar on the right, so the felt hardly ever runs from edge to edge there."""
+        frame = [0, 0, 0, 0, -2, 0, 5, 0, 3, 0, 1, 0, -4, 4, 0, 0, -1, -2, -1, -5, 0, 0, 0, 0, 1, 1]
+        image = draw_board(frame, bottom="light", theme="blue", buttons=True, busy_middle=True)
+        self.assertEqual(comparable(read_board(image)), comparable(reading_for(frame, None, bottom="light")))
+
     def test_buttons_between_the_trays_are_not_borne_off_checkers(self):
         screen = next(s for s in sample_screens(80, seed=6) if s["dice"])
         image = draw_board(screen["frame"], dice=screen["dice"], theme="blue", buttons=True)

@@ -91,6 +91,30 @@ class TrackStoredMatch(unittest.TestCase):
         self.assertEqual([a["kind"] for a in actions], ["game", "move", "undo"])
 
 
+    def test_a_move_that_does_not_fit_the_dice_read_is_still_found(self):
+        """Dice misread on screen (here 6-6 for a 5-2) must not freeze the tracker: the play is matched to the roll
+        that does fit."""
+        header, games = fixture_games()
+        shown = screens(games[:1], header["match_length"])
+        misread = [reading_for(s["frame"], s["dice"] and {**s["dice"], "values": [6, 6]}) for s in shown]
+        without_dice = lambda play: (play[0], play[2], play[3])
+        self.assertEqual([without_dice(p) for p in played(watch(Tracker(), misread))[0]],
+                         [without_dice(as_play(a)) for a in games[0]["actions"] if a["kind"] == "move"])
+
+    def test_a_position_no_move_explains_is_counted_once(self):
+        jumped = list(START)
+        jumped[6], jumped[1] = 0, 5
+        moved = list(START)
+        moved[13], moved[8], moved[11] = 3, 4, 1
+        dice = {"side": "bottom", "values": [5, 2]}
+        tracker = Tracker()
+        counts = []
+        for reading in (reading_for(START, dice), reading_for(moved, dice), reading_for(jumped, dice)):
+            watch(tracker, [reading], repeats=3)
+            counts.append(tracker.unexplained)
+        self.assertEqual(counts, [0, 0, 1])
+
+
 class Winner(unittest.TestCase):
     def test_single_gammon_and_backgammon(self):
         single = [0] * 26

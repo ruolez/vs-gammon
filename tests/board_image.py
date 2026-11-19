@@ -10,6 +10,8 @@ THEMES = {
              "shades": {"dark": ((57, 82, 177), (237, 239, 252)), "light": ((237, 239, 252), (57, 82, 177))}},
 }
 BUTTON = (42, 53, 72)
+WATERMARK = (128, 160, 232)
+SCORE_BOX = (243, 245, 251)
 PIPS = {1: [(0.5, 0.5)], 2: [(0.27, 0.27), (0.73, 0.73)], 3: [(0.25, 0.25), (0.5, 0.5), (0.75, 0.75)],
         4: [(0.27, 0.27), (0.73, 0.27), (0.27, 0.73), (0.73, 0.73)],
         5: [(0.25, 0.25), (0.75, 0.25), (0.5, 0.5), (0.25, 0.75), (0.75, 0.75)],
@@ -17,9 +19,12 @@ PIPS = {1: [(0.5, 0.5)], 2: [(0.27, 0.27), (0.73, 0.73)], 3: [(0.25, 0.25), (0.5
 
 
 def draw_board(frame, bottom="dark", dice=None, pw=32, page=(1660, 955), origin=(980, 220), dice_body=None,
-               theme="green", buttons=False):
+               theme="green", buttons=False, busy_middle=False):
     """frame: player 1 (bottom) frame. dice: {"side", "values"}. dice_body: the dice colour, else the roller's.
-    buttons: icon buttons between the trays, as the blue game page has them."""
+    buttons: icon buttons between the trays, as the blue game page has them.
+    busy_middle: what the game page draws across the middle of the fields (Double and Roll buttons, a watermark logo
+    near each field's inner edge), the score boxes left of the board and the header's rating bar, which has the felt's
+    colour and sits above the board."""
     colours = THEMES[theme]
     FELT, FRAME, TRAY, POINTS, SHADES = (colours[k] for k in ("felt", "frame", "tray", "points", "shades"))
     top_shade = "light" if bottom == "dark" else "dark"
@@ -43,6 +48,17 @@ def draw_board(frame, bottom="dark", dice=None, pw=32, page=(1660, 955), origin=
             y = (top_y + bottom_y) // 2 - int(pw * 1.6) + i * int(pw * 1.1)
             d.rounded_rectangle((tray_x, y, tray_x + tray_w - pw // 4, y + int(pw * 0.9)), radius=4, fill=BUTTON)
             d.rectangle((tray_x + pw // 4, y + pw // 4, tray_x + pw // 2, y + int(pw * 0.65)), fill=(232, 234, 240))
+
+    if busy_middle:
+        middle_y = (top_y + bottom_y) // 2
+        for fx in (left_x, right_x):
+            lx = fx + int(pw * 0.6)
+            d.ellipse((lx, middle_y - int(pw * 0.7), lx + int(pw * 1.4), middle_y + int(pw * 0.7)), fill=WATERMARK)
+            d.rounded_rectangle((fx + int(pw * 2.6), middle_y - int(pw * 0.38), fx + int(pw * 4.8), middle_y + int(pw * 0.38)),
+                                radius=pw // 3, fill=BUTTON)
+        d.rectangle((left_x + pw, 10, left_x + 4 * pw, 14), fill=FELT)
+        for y in (top_y, bottom_y - int(pw * 1.1)):
+            d.rounded_rectangle((left_x - int(pw * 1.6), y, left_x - int(pw * 0.5), y + int(pw * 1.1)), radius=4, fill=SCORE_BOX)
 
     def column(point):
         if point <= 6:

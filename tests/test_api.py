@@ -637,6 +637,21 @@ class LiveStats(ApiTestCase):
                           [(m["player"], m["dice"], m["move"]) for m in moves]),
                          ("Me", 5, True, [(1, [5, 2], "13/11 13/8")]))
 
+    def test_a_board_no_move_explains_is_kept_for_diagnosis(self):
+        self.client.post("/api/live", json={"opponent": "ai", "match_length": 3})
+        moved = list(START_FRAME)
+        moved[13], moved[8], moved[11] = 3, 4, 1
+        jumped = list(moved)
+        jumped[6], jumped[1] = 0, 5
+        dice = {"side": "bottom", "values": [5, 2]}
+        folder = os.path.join(self.data_dir, "live-frames")
+        self.send_board(START_FRAME, dice)
+        self.send_board(moved, dice)
+        kept_after_a_move = sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+        self.send_board(jumped, dice, times=3)
+        kept = sorted(os.listdir(folder))
+        self.assertEqual((kept_after_a_move, [os.path.splitext(n)[1] for n in kept]), ([], [".json", ".png"]))
+
     def test_settings_are_validated(self):
         self.client.post("/api/live", json={})
         response = self.client.patch("/api/live", json={"opponent": "robot"})
