@@ -10,6 +10,8 @@ DRIVER = os.path.join(os.path.dirname(__file__), "analyse_gnubg.py")
 DEEP_DRIVER = os.path.join(os.path.dirname(__file__), "deep_gnubg.py")
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_TIMEOUT = 3600
+# 4-ply takes about 20 times as long as 3-ply: a long match on few cores can run for hours.
+DEEP_MATCH_TIMEOUT = 12 * 3600
 
 _running = set()
 _stopping = threading.Event()
@@ -51,7 +53,8 @@ def stop_running():
         proc.kill()
 
 
-def run_analysis(mat_path, plies=2, threads=4, timeout=DEFAULT_TIMEOUT):
+def run_analysis(mat_path, plies=2, threads=4, timeout=None):
+    timeout = timeout or (DEEP_MATCH_TIMEOUT if plies >= 4 else DEFAULT_TIMEOUT)
     with tempfile.TemporaryDirectory(prefix="gnubg-") as work:
         output = os.path.join(work, "result.json")
         env = {

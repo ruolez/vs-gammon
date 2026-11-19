@@ -2,7 +2,7 @@ const PREFS_KEY = "moves.filters";
 
 const state = {
   matches: [], picked: new Set(), thresholds: null, decisions: [], selected: new Set(), current: null, shown: null, focus: null,
-  candidate: null, hover: null, revealed: false, detail: null,
+  candidate: null, hover: null, detail: null,
 };
 
 const FILTER_DEFAULTS = {
@@ -229,20 +229,11 @@ function bestCandidate(d) {
 }
 
 function renderBoardPanel(d) {
-  const who = esc(playerName(d, d.player));
-  const title = t(d.kind === "checker" ? "{name} to play" : d.kind === "cube" ? "{name}: double or not?" : "{name}: take or pass?", { name: who });
-  const extras = $("bp-extras");
-  const keepScroll = extras && extras.dataset.shown === String(d.id) ? extras.scrollTop : 0;
   $("board-panel").innerHTML = `
-    <div class="position-title"><h2>${title}</h2>${d.kind === "checker" ? diceSvg(d.dice) : ""}${severityChip(d.class)}<span class="position-facts small muted">${esc(d.player1)} ${t("vs")} ${esc(d.player2)} · ${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })} · ${d.match_length ? t("{a}–{b} to {n}", { a: d.score1, b: d.score2, n: d.match_length }) : t("money")} · ${cubeText(d)}</span></div>
-    <div class="board-nav solo"><div id="board"></div></div>
-    <div class="bp-extras" id="bp-extras" data-shown="${d.id}">
-      <div class="deep-row"><div class="deep-bar" id="deep-bar"></div><div class="tag-line" id="tag-line"></div><button class="btn sm secondary" id="copy-xgid" title="${esc(d.xgid)}">${icon("copy")}${t("Copy XGID")}</button></div>
-    </div>`;
-  $("bp-extras").scrollTop = keepScroll;
+    <div class="position-title"><div class="tag-line" id="tag-line"></div><button class="btn sm secondary" id="copy-xgid" title="${esc(d.xgid)}">${icon("copy")}${t("Copy XGID")}</button><span class="position-facts small muted">${esc(d.player1)} ${t("vs")} ${esc(d.player2)} · ${t("game {game}, move {move}", { game: d.game_no, move: d.move_no })} · ${d.match_length ? t("{a}–{b} to {n}", { a: d.score1, b: d.score2, n: d.match_length }) : t("money")} · ${cubeText(d)}</span></div>
+    <div class="board-nav solo"><div id="board"></div></div>`;
   drawBoard(d);
   renderTagLine(d);
-  Deep.mount($("deep-bar"), d, deeperResult);
   $("copy-xgid").addEventListener("click", async () => {
     try {
       await (Native.available ? Native.call("copy", { text: d.xgid }) : navigator.clipboard.writeText(d.xgid));
@@ -264,7 +255,6 @@ function deeperResult(fresh) {
   renderRows();
   if (state.shown === fresh.id) {
     state.candidate = null;
-    state.revealed = true;
     renderDetail(row || { ...fresh, copies: (rowOf(fresh.id) || {}).copies });
   }
 }
@@ -298,7 +288,7 @@ function drawBoard(d) {
   const index = state.decisions.findIndex((x) => x.id === state.current);
   const nav = { prev: index > 0, next: index >= 0 && index < state.decisions.length - 1 };
   if (d.kind !== "checker") {
-    Board.renderWithLabels($("board"), d, { bottom: d.player, cubeOffered: d.kind === "take", nav });
+    $("board").innerHTML = Board.render(d, { bottom: d.player, cubeOffered: d.kind === "take", nav });
     return;
   }
   const arrows = [];
@@ -308,11 +298,9 @@ function drawBoard(d) {
     const picked = d.candidates[shown];
     arrows.push({ kind: errorClass(best.equity - picked.equity, state.thresholds) || "good", steps: picked.steps });
   } else {
-    const played = d.candidates[d.played_index];
-    arrows.push({ kind: d.class || "good", steps: played.steps });
-    if (best !== played && state.revealed) arrows.push({ kind: "good", steps: best.steps });
+    arrows.push({ kind: d.class || "good", steps: d.candidates[d.played_index].steps });
   }
-  Board.renderWithLabels($("board"), d, { arrows: arrows.filter((a) => a.steps), nav });
+  $("board").innerHTML = Board.render(d, { arrows: arrows.filter((a) => a.steps), nav });
 }
 
 function probsBlock(probs, who) {
@@ -326,40 +314,36 @@ function probsBlock(probs, who) {
 
 function verdict(d) {
   const cost = t("It cost {error} equity, about {pct}% in winning chances.", { error: d.error.toFixed(3), pct: (d.error * 50).toFixed(1) });
-  const text = d.error <= 0.0005 ? t("This was the engine's choice.") : `${d.class ? severityPhrase(d) : t("Close")}. ${cost}`;
+  const text = d.error <= 0.0005 ? t("This was the engine's choice.") : `${d.class ? severityPhrase(d) : d.kind === "checker" ? t("Close") : t("Also right")}. ${cost}`;
   return `<section><div class="verdict-line"><h3>${term(t("Equity lost"), t("Equity is your expected result from a position. A mistake loses equity; 0.1 is roughly 5% in winning chances."))}</h3><span class="big ${d.class ? "trend-bad" : "trend-good"}">${formatLoss(d.error)}</span></div><p class="small muted note-tight">${text}</p></section>`;
 }
 
-function reveal() {
-  if (state.revealed || !state.detail) return;
-  state.revealed = true;
-  renderDetail(state.detail);
+function deepSection() {
+  return `<section class="deep-section"><h3>${t("Analyse deeper")}</h3><div class="deep-bar" id="deep-bar"></div></section>`;
 }
 
 function renderAnalysis(d) {
-  if (!state.revealed) {
-    $("analysis").innerHTML = `<div class="analysis-hidden">${icon("eye")}<strong>${t("The best move is hidden")}</strong>
-      <p>${t("Find your own answer first, then look.")}</p>
-      <button type="button" class="btn" id="show-analysis">${t("Show analysis")} <span class="kbd">↵</span></button></div>${copiesSection(d)}`;
-    $("analysis").dataset.shown = d.id;
-    $("show-analysis").addEventListener("click", reveal);
-    bindCopies();
-    return;
-  }
   let body = verdict(d);
   if (d.kind === "checker") {
     const best = bestCandidate(d);
+    const byEquity = d.candidates.map((_, i) => i).sort((a, b) => d.candidates[b].equity - d.candidates[a].equity);
+    const top = d.candidates[d.played_index].equity >= best.equity ? d.played_index : d.candidates.indexOf(best);
+    const order = [top, d.played_index, ...byEquity].filter((i, n, all) => all.indexOf(i) === n);
     body += `<section><h3>${t("Candidate moves")}</h3><table class="cands"><thead><tr><th></th><th>${t("Move")}</th><th class="num">${t("Equity")}</th><th class="num">${t("Diff")}</th></tr></thead><tbody>${
-      d.candidates.map((c, i) => `<tr data-cand="${i}" class="${state.candidate === i ? "selected" : ""}">
-        <td class="rank">${i + 1}</td>
+      order.map((i) => [d.candidates[i], i]).map(([c, i]) => `<tr data-cand="${i}" class="${state.candidate === i ? "selected" : ""}">
+        <td class="rank">${byEquity.indexOf(i) + 1}</td>
         <td class="mv">${esc(c.move)}${c === best ? `<span class="tag best">${t("best")}</span>` : ""}${i === d.played_index ? `<span class="tag game">${t("played")}</span>` : ""}${sourceTag(c)}</td>
         <td class="num">${formatEquity(c.equity)}${plusMinus(c.rollout && c.rollout.std)}</td><td class="num diff">${c === best ? "" : (c.equity - best.equity).toFixed(3)}</td></tr>`).join("")
     }</tbody></table><p class="small muted muted-note">${t("Point at a move to see it on the board. Click to keep it.")}</p></section>`;
+    body += deepSection();
     body += `<div id="probs">${probsBlock((d.candidates[state.hover ?? state.candidate ?? d.played_index] || {}).probs, playerName(d, d.on_roll))}</div>`;
     if (d.forced) body += `<section><p class="small muted">${t("Forced: only one legal play.")}</p></section>`;
   } else {
     const c = d.cube;
     const optimal = Math.max(c.nd, Math.min(c.dt, c.dp));
+    const options = Cube.cubeOptions(d.kind, c, state.thresholds.doubtful);
+    const right = new Set(options.filter((o) => o.right).map((o) => o.row));
+    const rightText = [d.best, ...Cube.otherRightActions(options, d.best)].map((a) => `<strong>${esc(t(a))}</strong>`).join(` ${t("or")} `);
     const chosen = (label) => (d.kind === "cube" && ((label === "No double" && d.action === "No double") || (label === "Double, take" && d.action === "Double")))
       || (d.kind === "take" && ((label === "Double, take" && d.action === "Take") || (label === "Double, pass" && d.action === "Pass")));
     const source = c.rollout ? `<p class="small muted note-tight">${t("Rolled out: {games}", { games: plural(c.rollout.trials, "game") })}</p>`
@@ -367,9 +351,10 @@ function renderAnalysis(d) {
     const stds = c.rollout ? { "No double": c.rollout.nd_std, "Double, take": c.rollout.dt_std } : {};
     body += `<section><h3>${t("Cube equities for {name}", { name: esc(playerName(d, d.on_roll)) })}</h3>${source}<div class="cube-rows">${
       [["No double", c.nd], ["Double, take", c.dt], ["Double, pass", c.dp]].map(([label, eq]) => `
-        <div class="cube-row ${eq === optimal ? "best" : ""}"><span>${t(label)}${chosen(label) ? `<span class="tag game">${t("played")}</span>` : ""}${eq === optimal ? `<span class="tag best">${t("best")}</span>` : ""}</span>
+        <div class="cube-row ${right.has(label) ? "best" : ""}"><span>${t(label)}${chosen(label) ? `<span class="tag game">${t("played")}</span>` : ""}${right.has(label) ? `<span class="tag best">${t("best")}</span>` : ""}</span>
         <span class="eq">${formatEquity(eq)}${plusMinus(stds[label])}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("")
-    }</div><p class="small muted-note">${t("Right action")}: <strong>${esc(t(d.best))}</strong></p></section>`;
+    }</div><p class="small muted-note">${t("Right action")}: ${rightText}</p></section>`;
+    body += deepSection();
     body += probsBlock(c.probs, playerName(d, d.on_roll));
   }
   const samePosition = $("analysis").dataset.shown === String(d.id);
@@ -377,6 +362,7 @@ function renderAnalysis(d) {
   $("analysis").dataset.shown = d.id;
   if (!samePosition) $("analysis").scrollTop = 0;
   bindCopies();
+  Deep.mount($("deep-bar"), d, deeperResult);
   $("analysis").querySelectorAll("[data-cand]").forEach((el) => el.addEventListener("click", () => {
     const i = Number(el.dataset.cand);
     state.candidate = state.candidate === i ? null : i;
@@ -403,7 +389,6 @@ async function showDetail(id, copyId = null) {
   if (state.shown !== shown) {
     state.candidate = null;
     state.hover = null;
-    state.revealed = false;
     Tags.closePicker();
   }
   state.current = id;
@@ -662,7 +647,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (ev.key === "ArrowDown" || ev.key === "ArrowRight" || ev.key === "j") { ev.preventDefault(); step(1); }
     if ((ev.key === "t" || ev.key === "T") && $("tag-line")) { ev.preventDefault(); $("tag-line").querySelector(".tag-btn")?.click(); }
     if (ev.key === "ArrowUp" || ev.key === "ArrowLeft" || ev.key === "k") { ev.preventDefault(); step(-1); }
-    if (ev.key === "Enter" && !state.revealed && !["BUTTON", "A"].includes(tag)) { ev.preventDefault(); reveal(); }
     if (ev.key === " " && state.current) {
       ev.preventDefault();
       state.selected.has(state.current) ? state.selected.delete(state.current) : state.selected.add(state.current);

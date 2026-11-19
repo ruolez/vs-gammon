@@ -294,9 +294,10 @@ class Settings(ApiTestCase):
 
     def test_depth_is_validated(self):
         self.assertEqual(
-            (self.client.put("/api/settings", json={"plies": 3}).status_code,
+            (self.client.put("/api/settings", json={"plies": 4}).status_code,
+             self.client.get("/api/settings").get_json()["settings"]["plies"],
              self.client.put("/api/settings", json={"plies": 5}).status_code),
-            (200, 400),
+            (200, 4, 400),
         )
 
 

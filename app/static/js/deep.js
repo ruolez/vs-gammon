@@ -88,7 +88,6 @@ const Deep = {
       <button type="button" class="btn sm ghost icon-only" data-original title="${t("Back to the original analysis")}" aria-label="${t("Back to the original analysis")}">${icon("undo")}</button></span>` : "";
     el.innerHTML = `<div class="deep-actions${open ? " open" : ""}${d.deep ? " has-result" : ""}">
         <span class="deep-label">${t("Analyse deeper")}</span>
-        <button type="button" class="btn sm secondary" data-eval="3" title="${t("Evaluate the best moves 3 plies deep")}">3-ply</button>
         <button type="button" class="btn sm secondary" data-eval="4" title="${t("Evaluate the best moves 4 plies deep")}">4-ply</button>
         <button type="button" class="btn sm ${open ? "secondary" : ""}" data-rollout aria-expanded="${open}">${icon("play")}${t("Rollout")}</button>
         ${open ? this.rolloutFields(rollout) : ""}

@@ -11,7 +11,12 @@ MONEY_GAME = 99999
 DELPHI_EPOCH = datetime.datetime(1899, 12, 30)
 DOUBLED_BLOCK = slice(64, 196)
 UNANALYSED_CUBE_FLAG = -100
-DOUBLE_FIELD = {"checker": 0, "double": -1, "take": 1}
+NO_CUBE_ACTION = -2
+XG_BAR = 24
+XG_OFF = -1
+COMMENT_LINE = b"\x01\x02"
+RTF_HEAD = (b"{\\rtf1\\ansi\\ansicpg1252\\uc1\\deff0\\deflang1033\\deflangfe1033{\\fonttbl{\\f0\\fcharset0 Arial;}}"
+            + COMMENT_LINE + b"{\\colortbl;}" + COMMENT_LINE + b"\\pard\\sl-240\\slmult1 \\lang1033\\fs20\\f0 ")
 
 
 def _load_template():
@@ -40,6 +45,47 @@ def _away(spot, player):
 
 def _dice_text(dice):
     return f"{dice[0]}{dice[1]}" if dice else "11"
+
+
+def _xg_moves(steps):
+    """Our steps (1-24, 25 = bar, 0 = off) as XG's from/to pairs: 0-based points, 24 = bar, -1 = off."""
+    pairs = [value for a, b in steps for value in (XG_BAR if a == 25 else a - 1, XG_OFF if b == 0 else b - 1)]
+    return pairs + [-1] * (8 - len(pairs))
+
+
+def _after_move(frame, steps):
+    """The mover's frame (25 = own bar, 0 = the opponent's bar, opponent negative) after playing the steps."""
+    after = list(frame)
+    for a, b in steps:
+        after[a] -= 1
+        if b == 0:
+            continue
+        if after[b] == -1:
+            after[b] = 0
+            after[0] -= 1
+        after[b] += 1
+    return after
+
+
+def _cube_action(spot, cube_b, active):
+    if spot["decision"] == "checker":
+        can_double = not spot["crawford_game"] and cube_b * active >= 0
+        return (0 if can_double else NO_CUBE_ACTION), -1
+    if spot["decision"] == "double":
+        return (1 if spot["action"] == "Double" else 0), -1
+    return 1, (1 if spot["action"] == "Take" else 0)
+
+
+def _rtf_comment(text):
+    escaped = bytearray()
+    for byte in text.encode("cp1252", "replace"):
+        if byte in b"\\{}":
+            escaped += b"\\" + bytes([byte])
+        elif 32 <= byte < 127:
+            escaped.append(byte)
+        else:
+            escaped += f"\\'{byte:02x}".encode()
+    return RTF_HEAD + bytes(escaped) + b"\\par" + COMMENT_LINE + b"}\r\n"
 
 
 def save_name(spot):
@@ -71,10 +117,12 @@ def build_xgp(spot):
     set_field(header_game, "game_number", 1)
     set_field(header_game, "in_progress", True)
 
+    double, take = _cube_action(spot, cube_b, active)
     set_field(cube, "active", active)
-    set_field(cube, "double", DOUBLE_FIELD[spot["decision"]])
-    for name in ("take", "beaver_r", "raccoon_r", "rollout_index_d", "comp_choice_d", "analyze_c", "analyze_cr"):
+    for name in ("beaver_r", "raccoon_r", "rollout_index_d", "comp_choice_d", "analyze_c", "analyze_cr"):
         set_field(cube, name, -1)
+    set_field(cube, "double", double)
+    set_field(cube, "take", take)
     set_field(cube, "cube_b", cube_b)
     set_field(cube, "position", spot["board"])
     cube[DOUBLED_BLOCK] = bytes(DOUBLED_BLOCK.stop - DOUBLED_BLOCK.start)
@@ -97,10 +145,19 @@ def build_xgp(spot):
 
     game_records = [header_match, header_game, cube]
     if spot["decision"] == "checker":
+        set_field(move, "moves", _xg_moves(spot["played_steps"]))
+        set_field(move, "position_end", _after_move(onroll_view, spot["played_steps"]))
+        set_field(move, "played", True)
         game_records.append(move)
+    if spot["comment"] and spot["decision"] == "checker":
+        set_field(move, "comment_move", 0)
+    elif spot["comment"]:
+        set_field(cube, "comment_cube", 0)
     files = [
         ("temp.xg", b"".join(bytes(r) for r in game_records)),
         ("temp.xgi", bytes(header_match) + bytes(move)),
     ]
+    if spot["comment"]:
+        files.append(("temp.xgc", _rtf_comment(spot["comment"])))
     header = build_rich_header(spot["guid"], save_name(spot), spot["thumbnail"])
     return header + pack_archive(files)

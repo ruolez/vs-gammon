@@ -38,12 +38,20 @@ def rollout_equity(m, to_emg):
     return m["match-eq"], m["match-eq-std"]
 
 
-def _depth(m, base_plies):
-    context = m.get("evalcontext") or {}
-    return context.get("plies", base_plies)
+def _depth(m, default_plies):
+    return (m.get("evalcontext") or {}).get("plies", default_plies)
 
 
-def _row(m, move_text, board, to_emg, base_plies):
+def _default_plies(info, base_plies):
+    """gnubg lists a move's evalcontext only where it differs from match-info's default-eval-context, a context it
+    picks itself (1 after a 1-ply analysis, 2 after a 3- or 4-ply one)."""
+    default = (info.get("default-eval-context") or {}).get("plies")
+    if default is not None:
+        return default
+    return base_plies if base_plies is not None else 2
+
+
+def _row(m, move_text, board, to_emg, base_plies, default_plies):
     row = {"move": move_text(m["move"], board), "steps": m["move"], "probs": m["probs"]}
     if m.get("type") == "rollout":
         row["equity"], std = rollout_equity(m, to_emg)
@@ -51,19 +59,18 @@ def _row(m, move_text, board, to_emg, base_plies):
     else:
         row["equity"] = m["score"]
         if base_plies is not None:
-            row["plies"] = _depth(m, base_plies)
+            row["plies"] = _depth(m, default_plies)
     return row
 
 
-def _full(m, base_plies):
-    if base_plies is None or m.get("type") == "rollout":
-        return "evalcontext" not in m
-    return _depth(m, base_plies) >= base_plies
-
-
-def _candidates(analysis, played_move, move_text, board, to_emg=lambda v: v, base_plies=None):
-    evaluated = [_row(m, move_text, board, to_emg, base_plies) | {"_full": _full(m, base_plies), "_move": m["move"]}
-                 for m in analysis["moves"]]
+def _candidates(analysis, played_move, move_text, board, to_emg=lambda v: v, base_plies=None, default_plies=2):
+    """Candidates are the moves evaluated at full depth: the match's depth after a deeper analysis of one
+    decision, otherwise the deepest any move of this decision reached (gnubg's move filter drops the rest early)."""
+    depths = [None if m.get("type") == "rollout" else _depth(m, default_plies) for m in analysis["moves"]]
+    full_depth = base_plies if base_plies is not None else max((d for d in depths if d is not None), default=0)
+    evaluated = [_row(m, move_text, board, to_emg, base_plies, default_plies)
+                 | {"_full": depth is None or depth >= full_depth, "_move": m["move"]}
+                 for m, depth in zip(analysis["moves"], depths)]
     full = [m for m in evaluated if m["_full"]]
     played = next((m for m in evaluated if m["_move"] == played_move), evaluated[analysis["imove"]])
     ranked = sorted(full if played in full else full + [played], key=lambda m: -m["equity"])
@@ -83,6 +90,7 @@ def walk_match(match, helpers, with_records=False, base_plies=None):
     depth it was evaluated at (used after a deeper analysis of one decision)."""
     info = match["match-info"]
     match_length = info.get("match-length", 0)
+    default_plies = _default_plies(info, base_plies)
     games, decisions, luck = [], [], []
 
     for game_no, game in enumerate(match["games"], start=1):
@@ -116,7 +124,7 @@ def walk_match(match, helpers, with_records=False, base_plies=None):
             dt = to_emg(analysis["dt-cubeful-eq"], on_roll)
             cube = {"nd": nd, "dt": dt, "dp": DOUBLE_PASS, "probs": analysis.get("probs", analysis.get("nd-probs"))}
             if base_plies is not None and analysis.get("type") != "rollout":
-                cube["plies"] = (analysis.get("eval-context") or {}).get("plies", base_plies)
+                cube["plies"] = (analysis.get("eval-context") or {}).get("plies", default_plies)
             if analysis.get("type") == "rollout":
                 cube["rollout"] = {
                     "trials": analysis["trials"],
@@ -160,7 +168,8 @@ def walk_match(match, helpers, with_records=False, base_plies=None):
                 if record.get("move") and analysis.get("moves"):
                     pair, base = context(player, player, record["board"])
                     rows, played_index, forced, legal = _candidates(
-                        analysis, record["move"], helpers.move_text, pair, lambda v: to_emg(v, player), base_plies)
+                        analysis, record["move"], helpers.move_text, pair, lambda v: to_emg(v, player), base_plies,
+                        default_plies)
                     best_index = max(range(len(rows)), key=lambda i: rows[i]["equity"])
                     found({
                         **base, "move_no": move_no, "kind": "checker", "dice": record.get("dice"),

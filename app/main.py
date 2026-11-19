@@ -76,8 +76,8 @@ def _validate_settings(payload):
         changes["thresholds"] = db.PRESETS[changes["preset"]]
     if "plies" in payload:
         plies = int(payload["plies"])
-        if plies not in (0, 1, 2, 3):
-            raise ValueError("analysis depth must be 0, 1, 2 or 3 ply")
+        if plies not in (0, 1, 2, 3, 4):
+            raise ValueError("analysis depth must be 0 to 4 ply")
         changes["plies"] = plies
     if "threads" in payload:
         threads = int(payload["threads"])

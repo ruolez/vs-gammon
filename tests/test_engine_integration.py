@@ -1,9 +1,19 @@
 import os
 import unittest
 
+from app.analysis import classify
 from app.engine.runner import EngineError, gnubg_available, run_analysis
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
+
+
+def grading_mismatches(decisions):
+    thresholds = {"doubtful": 0.03, "bad": 0.06, "very_bad": 0.12}
+    return [
+        (d["game_no"], d["move_no"], d["kind"], d["player"], d["gnubg_skill"], round(d["error"], 4))
+        for d in decisions
+        if classify(d["error"], thresholds) != (d["gnubg_skill"].replace(" ", "_") if d["gnubg_skill"] else None)
+    ]
 
 
 @unittest.skipUnless(gnubg_available(), "gnubg is only installed in the container")
@@ -42,17 +52,14 @@ class AnalyseGalaxyMatch(unittest.TestCase):
         self.assertEqual([d for d in self.decisions if d["game_no"] == 2 and d["kind"] != "checker"], [])
 
     def test_gnubg_graded_errors_agree_with_ours(self):
-        thresholds = {"doubtful": 0.03, "bad": 0.06, "very_bad": 0.12}
-        from app.analysis import classify
-        def gnubg_class(skill):
-            return skill.replace(" ", "_") if skill else None
+        self.assertEqual(grading_mismatches(self.decisions), [])
 
-        mismatched = [
-            (d["game_no"], d["move_no"], d["kind"], d["player"], d["gnubg_skill"], round(d["error"], 4))
-            for d in self.decisions
-            if classify(d["error"], thresholds) != gnubg_class(d["gnubg_skill"])
-        ]
-        self.assertEqual(mismatched, [])
+
+@unittest.skipUnless(gnubg_available(), "gnubg is only installed in the container")
+class AnalyseGalaxyMatchAtThreePly(unittest.TestCase):
+    def test_gnubg_graded_errors_agree_with_ours(self):
+        result = run_analysis(os.path.join(FIXTURES, "galaxy_3pt.mat"), plies=3, threads=4)
+        self.assertEqual(grading_mismatches(result["decisions"]), [])
 
 
 @unittest.skipUnless(gnubg_available(), "gnubg is only installed in the container")

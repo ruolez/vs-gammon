@@ -149,15 +149,17 @@ const Board = (() => {
       const fromLevel = Math.max(0, frame[from] - 1);
       const next = Moves.applyStep(frame, [from, to]);
       const end = slot(to, to === 0 ? 0 : Math.max(0, next[to] - 1));
+      // A checker's steps join into one arrow, except where it hits: the arrow ends there so every hit shows.
+      const stops = to === 0 || frame[to] === -1;
       const open = paths.filter((p) => p.point === from && !p.used);
       const path = open[open.length - 1];
       if (path && from !== 25) {
         path.point = to;
         path.end = end;
-        path.used = to === 0;
+        path.used = stops;
       } else {
         paths.forEach((p) => { if (p.point === from) p.used = true; });
-        paths.push({ start: slot(from, fromLevel), end, point: to, used: to === 0 });
+        paths.push({ start: slot(from, fromLevel), end, point: to, used: stops });
       }
       frame = next;
     });

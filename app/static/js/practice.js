@@ -403,13 +403,16 @@ function cubeAnalysis() {
   const r = state.result;
   const c = d.cube;
   const optimal = Math.max(c.nd, Math.min(c.dt, c.dp));
+  const options = Cube.cubeOptions(d.kind, c, state.thresholds.doubtful);
+  const right = new Set(options.filter((o) => o.right).map((o) => o.row));
+  const rightText = [d.best, ...Cube.otherRightActions(options, d.best)].map((a) => t(a)).join(` ${t("or")} `);
   const rows = [["No double", c.nd], ["Double, take", c.dt], ["Double, pass", c.dp]].map(([label, eq]) =>
-    `<div class="cube-row ${eq === optimal ? "best" : ""}"><span>${t(label)}${eq === optimal ? `<span class="tag best">${t("best")}</span>` : ""}</span><span class="eq">${formatEquity(eq)}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("");
+    `<div class="cube-row ${right.has(label) ? "best" : ""}"><span>${t(label)}${right.has(label) ? `<span class="tag best">${t("best")}</span>` : ""}</span><span class="eq">${formatEquity(eq)}</span><span class="diff">${eq === optimal ? "" : (eq - optimal).toFixed(3)}</span></div>`).join("");
   const win = c.probs ? `<p class="small muted muted-note">${t("{name} wins {win}% (gammons {gammon}%).", { name: esc(playerName(d, d.on_roll)), win: (c.probs[0] * 100).toFixed(1), gammon: (c.probs[1] * 100).toFixed(1) })}</p>` : "";
   const kinds = arrowKinds();
   return `<h2>${t("Analysis")}</h2><div class="answer-lines">
       ${r.revealed ? "" : answerLine(kinds.yours, t("You"), t(r.answer), r.error <= 0.0005 ? t("best") : `−${r.error.toFixed(3)}`)}
-      ${answerLine(kinds.best, t("Right action"), t(d.best), "")}
+      ${answerLine(kinds.best, t("Right action"), rightText, "")}
       ${answerLine(kinds.played, t("In the game"), t(d.action), d.error > 0.0005 ? `−${d.error.toFixed(3)}` : t("best"))}
     </div><div class="small muted note-tight">${t("Equity for {name}, the doubler", { name: esc(playerName(d, d.on_roll)) })}</div><div class="cube-rows">${rows}</div>${win}`;
 }

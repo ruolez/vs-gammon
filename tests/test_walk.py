@@ -170,6 +170,42 @@ class WalkLegalMoves(unittest.TestCase):
         self.assertEqual({d["kind"] for d in self.decisions if d.get("legal") is None}, {"cube", "take"})
 
 
+def deep_match(analysis_plies, default_plies):
+    """gnubg leaves out a move's evalcontext when it equals match-info's default-eval-context, which it picks
+    itself: a 3- or 4-ply analysis reports its deepest moves with a context and the 2-ply ones without."""
+    deep = {"plies": analysis_plies}
+    game = [{"action": "move", "player": "X", "dice": [3, 1], "move": [[24, 21], [24, 23]], "board": "P1",
+             "analysis": {"moves": [{**mv([[13, 10], [24, 23]], 0.3), "evalcontext": deep},
+                                    {**mv([[8, 5], [6, 5]], 0.25), "evalcontext": deep},
+                                    mv([[24, 21], [24, 23]], 0.2),
+                                    {**mv([[6, 3], [6, 5]], 0.4), "evalcontext": {"plies": 0}}],
+                          "imove": 2}}]
+    return {"match-info": {"match-length": 7, "X": {"name": "alice"}, "O": {"name": "bob"},
+                           "default-eval-context": {"cubeful": 1, "plies": default_plies, "prune": 1}},
+            "games": [{"info": {"score-X": 0, "score-O": 0}, "game": game}]}
+
+
+class WalkDeepWholeMatchAnalysis(unittest.TestCase):
+    def test_played_move_is_graded_against_the_deepest_moves(self):
+        for plies in (3, 4):
+            with self.subTest(plies=plies):
+                d = walk_match(deep_match(plies, 2), FakeHelpers())["decisions"][0]
+                self.assertEqual(([c["move"] for c in d["candidates"]], d["best"], round(d["error"], 6),
+                                  [m["full"] for m in d["legal"]]),
+                                 (["13/10 24/23", "8/5 6/5", "24/21 24/23"], "13/10 24/23", 0.1,
+                                  [False, True, True, False]))
+
+    def test_moves_without_a_context_are_at_the_default_depth(self):
+        d = walk_match(deep_match(1, 1), FakeHelpers())["decisions"][0]
+        self.assertEqual(([c["move"] for c in d["candidates"]], round(d["error"], 6)),
+                         (["13/10 24/23", "8/5 6/5", "24/21 24/23"], 0.1))
+
+    def test_deeper_analysis_labels_contextless_moves_with_the_default_depth(self):
+        d = walk_match(deep_match(4, 2), FakeHelpers(), base_plies=3)["decisions"][0]
+        self.assertEqual([(c["move"], c["plies"]) for c in d["candidates"]],
+                         [("13/10 24/23", 4), ("8/5 6/5", 4), ("24/21 24/23", 2)])
+
+
 def rolled(move, mwc, std, trials=1296):
     return {"type": "rollout", "move": move, "probs": [0.52, 0.12, 0.0, 0.1, 0.0], "trials": trials,
             "cubeful-eq": mwc, "cubeful-eq-std": std, "match-eq": mwc, "match-eq-std": std,

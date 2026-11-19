@@ -4,7 +4,7 @@ import io
 import unittest
 import zipfile
 
-from app.export import build_export_zip, export_filename, spot_from_decision
+from app.export import build_export_zip, export_filename, played_comment, spot_from_decision
 from app.xgp.archive import read_xg_file
 from app.xgp.records import get_field, record_type, split_records
 from tests.test_position import START_FRAME, frame_with
@@ -19,7 +19,9 @@ def decision(**overrides):
         "match_length": 3, "score1": 0, "score2": 0, "crawford_game": False, "game_no": 1, "move_no": 16,
         "player": 2, "on_roll": 2, "kind": "checker", "board": START_FRAME, "cube_value": 2, "cube_owner": 2,
         "dice": [6, 6], "action": "22/16 21/15(2) 16/10", "best": "22/10 13/7(2)", "error": 0.107,
-        "xgid": "XGID=test",
+        "xgid": "XGID=test", "played_index": 1,
+        "candidates": [{"move": "22/10 13/7(2)", "steps": [[22, 16], [16, 10], [13, 7], [13, 7]]},
+                       {"move": "22/16 21/15(2) 16/10", "steps": [[22, 16], [21, 15], [21, 15], [16, 10]]}],
     }
     base.update(overrides)
     return base
@@ -38,19 +40,41 @@ class ExportFilename(unittest.TestCase):
 
 class SpotFromDecision(unittest.TestCase):
     def test_maps_decision_fields(self):
-        spot = spot_from_decision(decision(), SAVED_AT, b"g" * 16, b"jpeg")
+        spot = spot_from_decision(decision(), SAVED_AT, b"g" * 16, b"jpeg", "a comment")
         self.assertEqual(
             spot,
             {"player1": "chess gamm0n", "player2": "fish/soup", "match_length": 3, "score1": 0, "score2": 0,
              "crawford_game": False, "on_roll": 2, "board": START_FRAME, "cube_value": 2, "cube_owner": 2,
-             "decision": "checker", "dice": (6, 6), "guid": b"g" * 16, "saved_at": SAVED_AT, "thumbnail": b"jpeg"},
+             "decision": "checker", "dice": (6, 6), "guid": b"g" * 16, "saved_at": SAVED_AT, "thumbnail": b"jpeg",
+             "action": "22/16 21/15(2) 16/10", "played_steps": [[22, 16], [21, 15], [21, 15], [16, 10]],
+             "comment": "a comment"},
         )
 
     def test_cube_kinds(self):
         self.assertEqual(
-            [spot_from_decision(decision(kind=k, dice=None), SAVED_AT, b"g" * 16, b"")["decision"] for k in ("cube", "take")],
-            ["double", "take"],
+            [(lambda sp: (sp["decision"], sp["played_steps"]))(
+                spot_from_decision(decision(kind=k, dice=None, candidates=None, played_index=None), SAVED_AT, b"g" * 16, b"", ""))
+             for k in ("cube", "take")],
+            [("double", None), ("take", None)],
         )
+
+
+class PlayedComment(unittest.TestCase):
+    def test_names_the_played_action_its_cost_and_the_best_one(self):
+        cases = [
+            (decision(), "bad"),
+            (decision(error=0.0, action="13/7(2) 8/2(2)", best="13/7(2) 8/2(2)"), None),
+            (decision(error=0.02), None),
+            (decision(kind="cube", action="No double", best="Double, take", error=0.127), "very_bad"),
+            (decision(kind="take", action="Take", best="Take", error=0.0), None),
+        ]
+        self.assertEqual([played_comment(d, c) for d, c in cases], [
+            "Played: 22/16 21/15(2) 16/10 (-0.107, bad). Best: 22/10 13/7(2).",
+            "Played: 13/7(2) 8/2(2), the best move.",
+            "Played: 22/16 21/15(2) 16/10 (-0.020, close). Best: 22/10 13/7(2).",
+            "Played: No double (-0.127, very bad). Best: Double, take.",
+            "Played: Take, the best action.",
+        ])
 
 
 class BuildExportZip(unittest.TestCase):
@@ -98,6 +122,15 @@ class BuildExportZip(unittest.TestCase):
         name = next(n for n in archive.namelist() if n.endswith(".xgp"))
         records = split_records(dict(read_xg_file(archive.read(name))["files"])["temp.xg"])
         self.assertEqual((get_field(records[3], "active"), get_field(records[3], "dice")), (1, [6, 6]))
+
+    def test_each_file_carries_the_played_move_and_its_comment(self):
+        archive = zipfile.ZipFile(io.BytesIO(build_export_zip([decision()], THRESHOLDS, SAVED_AT)))
+        name = next(n for n in archive.namelist() if n.endswith(".xgp"))
+        files = dict(read_xg_file(archive.read(name))["files"])
+        move = split_records(files["temp.xg"])[3]
+        self.assertEqual((get_field(move, "played"), get_field(move, "moves"), get_field(move, "comment_move"),
+                          b"Played: 22/16 21/15(2) 16/10 (-0.107, bad). Best: 22/10 13/7(2)." in files["temp.xgc"]),
+                         (True, [21, 15, 20, 14, 20, 14, 15, 9], 0, True))
 
 
 if __name__ == "__main__":

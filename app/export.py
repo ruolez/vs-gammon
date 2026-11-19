@@ -10,6 +10,8 @@ from app.xgp.thumbnail import render_thumbnail
 from app.xgp.writer import build_xgp
 
 XGP_DECISION = {"checker": "checker", "cube": "double", "take": "take"}
+CLASS_TEXT = {"very_bad": "very bad", "bad": "bad", "doubtful": "doubtful", None: "close"}
+BEST_PLAY = 0.0005
 
 
 def _safe(text):
@@ -30,7 +32,16 @@ def export_filename(decision, error_class):
     return "_".join(parts) + ".xgp"
 
 
-def spot_from_decision(decision, saved_at, guid, thumbnail):
+def played_comment(decision, error_class):
+    """The comment XG shows beside the position: what was played, what it cost and the best play."""
+    if decision["error"] <= BEST_PLAY:
+        return f"Played: {decision['action']}, the best {'move' if decision['kind'] == 'checker' else 'action'}."
+    return (f"Played: {decision['action']} (-{decision['error']:.3f}, {CLASS_TEXT[error_class]}). "
+            f"Best: {decision['best']}.")
+
+
+def spot_from_decision(decision, saved_at, guid, thumbnail, comment):
+    played = decision["candidates"][decision["played_index"]]["steps"] if decision["kind"] == "checker" else None
     return {
         "player1": decision["player1"],
         "player2": decision["player2"],
@@ -47,6 +58,9 @@ def spot_from_decision(decision, saved_at, guid, thumbnail):
         "guid": guid,
         "saved_at": saved_at,
         "thumbnail": thumbnail,
+        "action": decision["action"],
+        "played_steps": played,
+        "comment": comment,
     }
 
 
@@ -70,7 +84,8 @@ def build_export_zip(decisions, thresholds, saved_at):
             error_class = classify(decision["error"], thresholds)
             name = _unique(export_filename(decision, error_class), used)
             seated = seat_decider(decision)
-            spot = spot_from_decision(seated, saved_at, uuid.uuid4().bytes_le, render_thumbnail(seated["board"]))
+            spot = spot_from_decision(seated, saved_at, uuid.uuid4().bytes_le, render_thumbnail(seated["board"]),
+                                      played_comment(decision, error_class))
             archive.writestr(name, build_xgp(spot))
             player_name = decision["player1"] if decision["player"] == 1 else decision["player2"]
             writer.writerow([
