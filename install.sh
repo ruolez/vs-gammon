@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # VS Gammon installer for macOS (Docker Desktop).
 #
-#   curl -fsSL https://raw.githubusercontent.com/ruolez/vs-gammon/refs/heads/main/install.sh | bash
+#   curl -fsSL https://gitnot.site/raw/ruolez/vs-gammon/main/install.sh | bash
 #   ~/vs-gammon/install.sh [install|update|start|stop|status|backup|restore FILE|shortcut|uninstall] [--yes]
 #
 # Installs into ~/vs-gammon (override with VSG_HOME), keeps matches and settings in ~/vs-gammon/data,
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 APP_NAME="VS Gammon"
-REPO_URL="${VSG_REPO:-https://github.com/ruolez/vs-gammon.git}"
+REPO_URL="${VSG_REPO:-https://gitnot.site/ruolez/vs-gammon.git}"
 BRANCH="${VSG_BRANCH:-main}"
 INSTALL_DIR="${VSG_HOME:-$HOME/vs-gammon}"
 DEFAULT_PORT=5563
@@ -136,7 +136,9 @@ ensure_docker() {
 
 fetch_source() {
   if [ -d "$INSTALL_DIR/.git" ]; then
-    info "Fetching the latest version from GitHub…"
+    info "Fetching the latest version…"
+    # Installs made from GitHub follow the repository to its current home.
+    git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
     git -C "$INSTALL_DIR" fetch --prune --quiet origin "$BRANCH"
     git -C "$INSTALL_DIR" reset --hard --quiet "origin/$BRANCH"
     # Remove files that are no longer part of the app; matches, exports, backups and settings stay.

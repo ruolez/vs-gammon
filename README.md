@@ -17,7 +17,7 @@ GNU Backgammon is free software under the GPL version 3; its source is at <https
 Needs Docker Desktop (the installer offers to install it with Homebrew) and git (the Command Line Tools). Open Terminal and run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ruolez/vs-gammon/refs/heads/main/install.sh | bash
+curl -fsSL https://gitnot.site/raw/ruolez/vs-gammon/main/install.sh | bash
 ```
 
 This installs into `~/vs-gammon` (set `VSG_HOME` for another folder) and does the following:
