@@ -101,6 +101,28 @@ class TrackStoredMatch(unittest.TestCase):
         self.assertEqual([without_dice(p) for p in played(watch(Tracker(), misread))[0]],
                          [without_dice(as_play(a)) for a in games[0]["actions"] if a["kind"] == "move"])
 
+    def test_plays_are_recovered_when_the_opponents_finished_move_is_never_seen(self):
+        """Galaxy's AI moves at once and the player rolls and plays right after: the screen with the AI's finished
+        move may never be read twice in a row. The next stable board is two plays on, and both must be found."""
+        header, games = fixture_games()
+        shown = screens(games, header["match_length"])
+        hidden = []
+        for game_no, game in enumerate(games, start=1):
+            moves = game["actions"]
+            for index in range(len(moves) - 1):
+                if moves[index]["kind"] == "move" and moves[index]["player"] == 2 and moves[index + 1]["kind"] == "move" \
+                        and moves[index]["steps"] and moves[index + 1]["steps"]:
+                    hidden.append((game_no, index))
+        finished = {}
+        for s in shown:
+            finished[(s["game_no"], s["action_index"])] = s["frame"]
+        skipped = [s for s in shown
+                   if not any(s["game_no"] == g and s["action_index"] in (i, i + 1) and s["frame"] == finished[(g, i)]
+                              for g, i in hidden)]
+        self.assertEqual(len(hidden) > 10, True)
+        actions = watch(Tracker(), [reading_for(s["frame"], s["dice"]) for s in skipped])
+        self.assertEqual(played(actions), [[as_play(a) for a in g["actions"] if a["kind"] == "move"] for g in games])
+
     def test_a_position_no_move_explains_is_counted_once(self):
         jumped = list(START)
         jumped[6], jumped[1] = 0, 5
